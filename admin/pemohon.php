@@ -58,7 +58,7 @@ require_once __DIR__ . '/../includes/header.php';
 <?php foreach ($daftar as $row): ?>
 <tr>
 <td class="fw-semibold"><?= e($row['nik']) ?></td><td><?= e($row['nama_pemohon']) ?></td><td><?= e($row['username'] ?? '-') ?></td>
-<td><?php if (!empty($row['gambar_path'])): ?><a href="../uploads/<?= e($row['gambar_path']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-image"></i> Lihat</a><?php else: ?>-<?php endif; ?></td>
+<td><?php if (!empty($row['gambar_path'])): ?><a href="../uploads/images/<?= e($row['gambar_path']) ?>" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-image"></i> Lihat</a><?php else: ?>-<?php endif; ?></td>
 <td><?= status_badge($row['status']) ?></td><td class="text-muted small"><?= e(date('d M Y, H:i', strtotime($row['created_at']))) ?></td>
 <td><button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalStatus<?= (int)$row['id'] ?>"><i class="bi bi-pencil-square"></i> Ubah</button></td>
 </tr>

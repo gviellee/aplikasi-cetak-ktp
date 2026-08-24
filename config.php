@@ -24,7 +24,7 @@ define('DB_PASS', '');
 // ===============================
 // UPLOAD
 // ===============================
-define('UPLOAD_DIR', __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR);
+define('UPLOAD_DIR', __DIR__ . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'images' . DIRECTORY_SEPARATOR);
 define('MAX_FILE_SIZE', 5 * 1024 * 1024);
 
 define('ALLOWED_EXT', [
