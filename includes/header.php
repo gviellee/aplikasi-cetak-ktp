@@ -7,7 +7,7 @@
 // require_once includes/functions.php
 // =========================================================
 
-$bp = base_path();
+$bp = rtrim(base_path(), '/') . '/';
 $currentPage = basename($_SERVER['SCRIPT_NAME']);
 
 // Ambil nama user dari session

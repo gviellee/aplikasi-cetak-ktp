@@ -5,80 +5,133 @@ require_once __DIR__ . '/../includes/functions.php';
 
 require_admin();
 
-$successMsg = '';
-$errorMsg = '';
+$errors = [];
+$success = '';
 
 /*
 |--------------------------------------------------------------------------
-| UPDATE STATUS PENGAJUAN
+| HAPUS USER
 |--------------------------------------------------------------------------
 */
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
+if (
+    $_SERVER['REQUEST_METHOD'] === 'POST' &&
+    isset($_POST['hapus_user'])
+) {
 
-    $id = (int) ($_POST['id'] ?? 0);
-    $status = trim($_POST['status'] ?? '');
-    $alasan = trim($_POST['alasan_penolakan'] ?? '');
+    $userId = (int) ($_POST['user_id'] ?? 0);
 
-    /*
-     * Ambil status yang tersedia
-     */
-    $availableStatuses = status_options();
+    if ($userId <= 0) {
 
-    /*
-     * Validasi ID
-     */
-    if ($id <= 0) {
-
-        $errorMsg = 'ID pengajuan tidak valid.';
-
-    /*
-     * Validasi status
-     */
-    } elseif (!array_key_exists($status, $availableStatuses)) {
-
-        $errorMsg = 'Status pengajuan tidak valid.';
-
-    /*
-     * Jika ditolak, alasan wajib diisi
-     */
-    } elseif ($status === 'ditolak' && $alasan === '') {
-
-        $errorMsg = 'Alasan penolakan wajib diisi jika pengajuan ditolak.';
+        $errors[] = 'ID user tidak valid.';
 
     } else {
-
-        /*
-         * Jika status bukan ditolak,
-         * hapus alasan penolakan sebelumnya.
-         */
-        if ($status !== 'ditolak') {
-            $alasan = null;
-        }
 
         try {
 
             $stmt = $pdo->prepare("
-                UPDATE pengajuan_ktp
-                SET
-                    status = ?,
-                    alasan_penolakan = ?,
-                    updated_at = NOW()
+                SELECT id, username, role
+                FROM users
                 WHERE id = ?
+                LIMIT 1
             ");
 
-            $stmt->execute([
-                $status,
-                $alasan,
-                $id
-            ]);
+            $stmt->execute([$userId]);
 
-            $successMsg = 'Status pengajuan berhasil diperbarui.';
+            $user = $stmt->fetch();
+
+            if (!$user) {
+
+                $errors[] = 'User tidak ditemukan.';
+
+            } elseif ($user['role'] === 'admin') {
+
+                $errors[] =
+                    'User admin tidak dapat dihapus dari halaman ini.';
+
+            } else {
+
+                /*
+                | Ambil file pengajuan terlebih dahulu
+                */
+
+                $stmt = $pdo->prepare("
+                    SELECT gambar_path, foto_diri_path
+                    FROM pengajuan_ktp
+                    WHERE user_id = ?
+                ");
+
+                $stmt->execute([$userId]);
+
+                $files = $stmt->fetchAll();
+
+
+                /*
+                | Hapus pengajuan
+                */
+
+                $stmt = $pdo->prepare("
+                    DELETE FROM pengajuan_ktp
+                    WHERE user_id = ?
+                ");
+
+                $stmt->execute([$userId]);
+
+
+                /*
+                | Hapus user
+                */
+
+                $stmt = $pdo->prepare("
+                    DELETE FROM users
+                    WHERE id = ?
+                    AND role = 'user'
+                ");
+
+                $stmt->execute([$userId]);
+
+
+                /*
+                | Hapus file
+                */
+
+                foreach ($files as $file) {
+
+                    if (!empty($file['gambar_path'])) {
+
+                        $path =
+                            UPLOAD_DIR .
+                            basename($file['gambar_path']);
+
+                        if (is_file($path)) {
+                            @unlink($path);
+                        }
+                    }
+
+
+                    if (!empty($file['foto_diri_path'])) {
+
+                        $path =
+                            UPLOAD_DIR .
+                            basename($file['foto_diri_path']);
+
+                        if (is_file($path)) {
+                            @unlink($path);
+                        }
+                    }
+                }
+
+
+                $success =
+                    "User '" .
+                    $user['username'] .
+                    "' berhasil dihapus.";
+            }
 
         } catch (PDOException $e) {
 
-            $errorMsg =
-                'Gagal memperbarui status pengajuan: ' .
+            $errors[] =
+                'Gagal menghapus user: ' .
                 $e->getMessage();
         }
     }
@@ -87,102 +140,110 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
 
 /*
 |--------------------------------------------------------------------------
-| FILTER DATA
+| AMBIL DATA PEMOHON
 |--------------------------------------------------------------------------
-*/
-
-$search = trim($_GET['q'] ?? '');
-$statusFilter = strtolower(trim($_GET['status'] ?? ''));
-
-$sql = "
-    SELECT
-        p.*,
-        u.username
-    FROM pengajuan_ktp p
-    LEFT JOIN users u
-        ON u.id = p.user_id
-    WHERE 1=1
-";
-
-$params = [];
-
-
-/*
-|--------------------------------------------------------------------------
-| SEARCH
-|--------------------------------------------------------------------------
-*/
-
-if ($search !== '') {
-
-    $sql .= "
-        AND (
-            p.nik LIKE ?
-            OR p.nama_pemohon LIKE ?
-            OR u.username LIKE ?
-        )
-    ";
-
-    $params[] = "%{$search}%";
-    $params[] = "%{$search}%";
-    $params[] = "%{$search}%";
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| FILTER STATUS
-|--------------------------------------------------------------------------
-*/
-
-if (
-    $statusFilter !== ''
-    && array_key_exists($statusFilter, status_options())
-) {
-
-    $sql .= " AND p.status = ?";
-
-    $params[] = $statusFilter;
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| URUTKAN DATA
-|--------------------------------------------------------------------------
-*/
-
-$sql .= " ORDER BY p.created_at DESC";
-
-
-/*
-|--------------------------------------------------------------------------
-| AMBIL DATA
+|
+| Setiap user hanya ditampilkan satu kali.
+| Pengajuan yang ditampilkan adalah pengajuan terbaru.
 |--------------------------------------------------------------------------
 */
 
 try {
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
+    $sql = "
+        SELECT
+            u.id,
+            u.username,
+            u.role,
+            u.created_at,
 
-    $daftar = $stmt->fetchAll();
+            p.id AS pengajuan_id,
+            p.nik,
+            p.nama_pemohon,
+            p.gambar_path,
+            p.foto_diri_path,
+            p.status,
+            p.created_at AS pengajuan_created_at
+
+        FROM users u
+
+        LEFT JOIN pengajuan_ktp p
+            ON p.id = (
+                SELECT p2.id
+                FROM pengajuan_ktp p2
+                WHERE p2.user_id = u.id
+                ORDER BY p2.created_at DESC, p2.id DESC
+                LIMIT 1
+            )
+
+        WHERE u.role = 'user'
+
+        ORDER BY u.created_at DESC
+    ";
+
+    $stmt = $pdo->query($sql);
+
+    $pemohon = $stmt->fetchAll();
 
 } catch (PDOException $e) {
 
-    $daftar = [];
+    $pemohon = [];
 
-    $errorMsg =
-        'Gagal mengambil data pengajuan: ' .
+    $errors[] =
+        'Gagal mengambil data pemohon: ' .
         $e->getMessage();
 }
 
 
 /*
 |--------------------------------------------------------------------------
-| HEADER
+| HITUNG STATUS
 |--------------------------------------------------------------------------
 */
+
+$totalPemohon = count($pemohon);
+
+$totalMenunggu = 0;
+$totalDiproses = 0;
+$totalSelesai = 0;
+$totalDitolak = 0;
+$totalBelum = 0;
+
+
+foreach ($pemohon as $p) {
+
+    $status = strtolower(
+        trim(
+            $p['status'] ?? ''
+        )
+    );
+
+
+    if (
+        $status === 'pending' ||
+        $status === 'menunggu'
+    ) {
+
+        $totalMenunggu++;
+
+    } elseif ($status === 'diproses') {
+
+        $totalDiproses++;
+
+    } elseif ($status === 'selesai') {
+
+        $totalSelesai++;
+
+    } elseif ($status === 'ditolak') {
+
+        $totalDitolak++;
+
+    } else {
+
+        $totalBelum++;
+    }
+}
+
 
 $pageTitle = 'Daftar Pemohon';
 
@@ -192,25 +253,79 @@ require_once __DIR__ . '/../includes/header.php';
 
 
 <!-- =========================================================
-     ALERT SUCCESS
+     HEADER
 ========================================================= -->
 
-<?php if ($successMsg): ?>
+<div class="d-flex justify-content-between align-items-center mb-4">
 
-    <div
-        class="alert alert-success alert-dismissible fade show"
-        role="alert"
+    <div>
+
+        <h5 class="fw-bold mb-1">
+
+            <i
+                class="bi bi-people-fill me-2"
+                style="color:#7c3aed;"
+            ></i>
+
+            Daftar Pemohon
+
+        </h5>
+
+        <p class="text-muted small mb-0">
+
+            Kelola data pemohon dan pengajuan cetak KTP.
+
+        </p>
+
+    </div>
+
+
+    <a
+        href="<?= $bp ?>admin/tambah_user.php"
+        class="btn btn-primary"
     >
 
-        <i class="bi bi-check-circle-fill me-2"></i>
+        <i class="bi bi-person-plus-fill me-1"></i>
 
-        <?= e($successMsg) ?>
+        Tambah User
 
-        <button
-            type="button"
-            class="btn-close"
-            data-bs-dismiss="alert"
-        ></button>
+    </a>
+
+</div>
+
+
+<!-- =========================================================
+     ALERT
+========================================================= -->
+
+<?php if ($success): ?>
+
+    <div class="alert alert-success">
+
+        <i class="bi bi-check-circle-fill me-1"></i>
+
+        <?= e($success) ?>
+
+    </div>
+
+<?php endif; ?>
+
+
+<?php if ($errors): ?>
+
+    <div class="alert alert-danger">
+
+        <ul class="mb-0 ps-3">
+
+            <?php foreach ($errors as $error): ?>
+
+                <li>
+                    <?= e($error) ?>
+                </li>
+
+            <?php endforeach; ?>
+
+        </ul>
 
     </div>
 
@@ -218,968 +333,623 @@ require_once __DIR__ . '/../includes/header.php';
 
 
 <!-- =========================================================
-     ALERT ERROR
+     STATISTIK
 ========================================================= -->
 
-<?php if ($errorMsg): ?>
-
-    <div
-        class="alert alert-danger alert-dismissible fade show"
-        role="alert"
-    >
-
-        <i class="bi bi-exclamation-triangle-fill me-2"></i>
-
-        <?= e($errorMsg) ?>
-
-        <button
-            type="button"
-            class="btn-close"
-            data-bs-dismiss="alert"
-        ></button>
-
-    </div>
-
-<?php endif; ?>
+<div class="row g-3 mb-4">
 
 
-<!-- =========================================================
-     FILTER
-========================================================= -->
+    <div class="col-xl-2 col-md-4 col-6">
 
-<div class="card p-3 mb-3">
+        <div class="stat-card">
 
-    <form method="GET">
+            <div
+                class="stat-icon"
+                style="background:linear-gradient(135deg,#7c3aed,#a78bfa);"
+            >
 
-        <div class="row g-2">
-
-            <!-- SEARCH -->
-
-            <div class="col-md-5">
-
-                <div class="input-group">
-
-                    <span
-                        class="input-group-text bg-white border-end-0"
-                    >
-
-                        <i class="bi bi-search text-muted"></i>
-
-                    </span>
-
-                    <input
-                        type="text"
-                        name="q"
-                        class="form-control border-start-0 ps-0"
-                        placeholder="Cari NIK / Nama / Username"
-                        value="<?= e($search) ?>"
-                    >
-
-                </div>
+                <i class="bi bi-people-fill"></i>
 
             </div>
 
-
-            <!-- STATUS -->
-
-            <div class="col-md-4">
-
-                <select
-                    name="status"
-                    class="form-select"
-                >
-
-                    <option value="">
-                        Semua Status
-                    </option>
-
-                    <?php foreach (status_options() as $key => $label): ?>
-
-                        <option
-                            value="<?= e($key) ?>"
-                            <?= $statusFilter === $key ? 'selected' : '' ?>
-                        >
-
-                            <?= e($label) ?>
-
-                        </option>
-
-                    <?php endforeach; ?>
-
-                </select>
-
+            <div class="stat-value">
+                <?= $totalPemohon ?>
             </div>
 
-
-            <!-- BUTTON -->
-
-            <div class="col-md-3 d-flex gap-2">
-
-                <button
-                    type="submit"
-                    class="btn btn-primary flex-fill"
-                >
-
-                    <i class="bi bi-funnel-fill me-1"></i>
-
-                    Filter
-
-                </button>
-
-
-                <a
-                    href="pemohon.php"
-                    class="btn btn-outline-secondary"
-                >
-
-                    Reset
-
-                </a>
-
+            <div class="stat-label">
+                Total Pemohon
             </div>
 
         </div>
 
-    </form>
+    </div>
+
+
+    <div class="col-xl-2 col-md-4 col-6">
+
+        <div class="stat-card">
+
+            <div
+                class="stat-icon"
+                style="background:linear-gradient(135deg,#f59e0b,#fbbf24);"
+            >
+
+                <i class="bi bi-hourglass-split"></i>
+
+            </div>
+
+            <div class="stat-value">
+                <?= $totalMenunggu ?>
+            </div>
+
+            <div class="stat-label">
+                Menunggu
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="col-xl-2 col-md-4 col-6">
+
+        <div class="stat-card">
+
+            <div
+                class="stat-icon"
+                style="background:linear-gradient(135deg,#7c3aed,#a78bfa);"
+            >
+
+                <i class="bi bi-arrow-repeat"></i>
+
+            </div>
+
+            <div class="stat-value">
+                <?= $totalDiproses ?>
+            </div>
+
+            <div class="stat-label">
+                Diproses
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="col-xl-2 col-md-4 col-6">
+
+        <div class="stat-card">
+
+            <div
+                class="stat-icon"
+                style="background:linear-gradient(135deg,#059669,#10b981);"
+            >
+
+                <i class="bi bi-check-circle-fill"></i>
+
+            </div>
+
+            <div class="stat-value">
+                <?= $totalSelesai ?>
+            </div>
+
+            <div class="stat-label">
+                Selesai
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="col-xl-2 col-md-4 col-6">
+
+        <div class="stat-card">
+
+            <div
+                class="stat-icon"
+                style="background:linear-gradient(135deg,#dc2626,#ef4444);"
+            >
+
+                <i class="bi bi-x-circle-fill"></i>
+
+            </div>
+
+            <div class="stat-value">
+                <?= $totalDitolak ?>
+            </div>
+
+            <div class="stat-label">
+                Ditolak
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="col-xl-2 col-md-4 col-6">
+
+        <div class="stat-card">
+
+            <div
+                class="stat-icon"
+                style="background:linear-gradient(135deg,#64748b,#94a3b8);"
+            >
+
+                <i class="bi bi-dash-circle-fill"></i>
+
+            </div>
+
+            <div class="stat-value">
+                <?= $totalBelum ?>
+            </div>
+
+            <div class="stat-label">
+                Belum Mengajukan
+            </div>
+
+        </div>
+
+    </div>
 
 </div>
 
 
 <!-- =========================================================
-     DATA PEMOHON
+     TABEL
 ========================================================= -->
 
-<div class="card p-4">
+<div class="card">
 
-    <div
-        class="d-flex align-items-center justify-content-between mb-3"
-    >
-
-        <h6 class="fw-bold mb-0">
-
-            <i
-                class="bi bi-people-fill me-1"
-                style="color:#1d4ed8;"
-            ></i>
-
-            Daftar Pemohon & Pengajuan
-
-        </h6>
-
-        <span class="text-muted small">
-
-            <?= count($daftar) ?> data
-
-        </span>
-
-    </div>
+    <div class="card-body p-0">
 
 
-    <div class="table-responsive">
+        <div
+            class="d-flex justify-content-between align-items-center p-4"
+        >
 
-        <table class="table table-hover align-middle mb-0">
+            <div>
 
-            <thead>
+                <h6 class="fw-bold mb-1">
 
-                <tr>
+                    <i
+                        class="bi bi-list-ul me-1"
+                        style="color:#7c3aed;"
+                    ></i>
 
-                    <th>NIK</th>
+                    Data Pemohon
 
-                    <th>Nama</th>
+                </h6>
 
-                    <th>Akun</th>
+                <span class="text-muted small">
 
-                    <th>Lampiran</th>
+                    Status berdasarkan pengajuan terbaru.
 
-                    <th>Status</th>
+                </span>
 
-                    <th>Tanggal</th>
-
-                    <th>Aksi</th>
-
-                </tr>
-
-            </thead>
-
-
-            <tbody>
+            </div>
 
 
-                <?php if (!$daftar): ?>
+            <span class="badge bg-primary">
+
+                <?= $totalPemohon ?> Pemohon
+
+            </span>
+
+        </div>
+
+
+        <div class="table-responsive">
+
+            <table class="table table-hover align-middle mb-0">
+
+                <thead>
+
+                    <tr>
+
+                        <th width="50">
+                            #
+                        </th>
+
+                        <th>
+                            Pemohon
+                        </th>
+
+                        <th>
+                            NIK
+                        </th>
+
+                        <th>
+                            Status
+                        </th>
+
+                        <th>
+                            Tanggal Pengajuan
+                        </th>
+
+                        <th class="text-center">
+                            Aksi
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+
+                <?php if (!$pemohon): ?>
 
                     <tr>
 
                         <td
-                            colspan="7"
-                            class="text-center text-muted py-4"
+                            colspan="6"
+                            class="text-center py-5"
                         >
 
                             <i
-                                class="bi bi-inbox fs-3 d-block mb-2"
+                                class="bi bi-people fs-1 text-muted"
                             ></i>
 
-                            Tidak ada data pengajuan.
+                            <div class="fw-semibold mt-2">
+
+                                Belum ada pemohon
+
+                            </div>
 
                         </td>
 
                     </tr>
+
+
+                <?php else: ?>
+
+
+                    <?php foreach ($pemohon as $index => $p): ?>
+
+                        <?php
+
+                        $status = strtolower(
+                            trim(
+                                $p['status'] ?? ''
+                            )
+                        );
+
+                        ?>
+
+
+                        <tr>
+
+
+                            <!-- NOMOR -->
+
+                            <td>
+                                <?= $index + 1 ?>
+                            </td>
+
+
+                            <!-- PEMOHON -->
+
+                            <td>
+
+                                <div
+                                    class="d-flex align-items-center gap-2"
+                                >
+
+                                    <div
+                                        style="
+                                            width:42px;
+                                            height:42px;
+                                            border-radius:50%;
+                                            background:linear-gradient(
+                                                135deg,
+                                                #7c3aed,
+                                                #a78bfa
+                                            );
+                                            display:flex;
+                                            align-items:center;
+                                            justify-content:center;
+                                            color:white;
+                                            font-weight:700;
+                                        "
+                                    >
+
+                                        <?= strtoupper(
+                                            substr(
+                                                $p['username'],
+                                                0,
+                                                1
+                                            )
+                                        ) ?>
+
+                                    </div>
+
+
+                                    <div>
+
+                                        <div class="fw-bold">
+
+                                            <?= e(
+                                                $p['username']
+                                            ) ?>
+
+                                        </div>
+
+
+                                        <?php if (
+                                            !empty(
+                                                $p['nama_pemohon']
+                                            )
+                                        ): ?>
+
+                                            <small class="text-muted">
+
+                                                <?= e(
+                                                    $p['nama_pemohon']
+                                                ) ?>
+
+                                            </small>
+
+                                        <?php else: ?>
+
+                                            <small class="text-muted">
+
+                                                Belum mengajukan
+
+                                            </small>
+
+                                        <?php endif; ?>
+
+                                    </div>
+
+                                </div>
+
+                            </td>
+
+
+                            <!-- NIK -->
+
+                            <td>
+
+                                <?php if (
+                                    !empty($p['nik'])
+                                ): ?>
+
+                                    <?= e($p['nik']) ?>
+
+                                <?php else: ?>
+
+                                    <span class="text-muted">
+                                        -
+                                    </span>
+
+                                <?php endif; ?>
+
+                            </td>
+
+
+                            <!-- STATUS -->
+
+                            <td>
+
+                                <?php if (
+                                    $status === 'pending' ||
+                                    $status === 'menunggu'
+                                ): ?>
+
+                                    <span
+                                        class="status-badge status-menunggu"
+                                    >
+
+                                        <i class="bi bi-hourglass-split me-1"></i>
+
+                                        Menunggu
+
+                                    </span>
+
+
+                                <?php elseif (
+                                    $status === 'diproses'
+                                ): ?>
+
+                                    <span
+                                        class="status-badge status-diproses"
+                                    >
+
+                                        <i class="bi bi-arrow-repeat me-1"></i>
+
+                                        Diproses
+
+                                    </span>
+
+
+                                <?php elseif (
+                                    $status === 'selesai'
+                                ): ?>
+
+                                    <span
+                                        class="status-badge status-selesai"
+                                    >
+
+                                        <i class="bi bi-check-circle-fill me-1"></i>
+
+                                        Selesai
+
+                                    </span>
+
+
+                                <?php elseif (
+                                    $status === 'ditolak'
+                                ): ?>
+
+                                    <span
+                                        class="status-badge status-ditolak"
+                                    >
+
+                                        <i class="bi bi-x-circle-fill me-1"></i>
+
+                                        Ditolak
+
+                                    </span>
+
+
+                                <?php else: ?>
+
+                                    <span class="badge bg-secondary">
+
+                                        Belum Mengajukan
+
+                                    </span>
+
+                                <?php endif; ?>
+
+                            </td>
+
+
+                            <!-- TANGGAL -->
+
+                            <td>
+
+                                <?php if (
+                                    !empty(
+                                        $p['pengajuan_created_at']
+                                    )
+                                ): ?>
+
+                                    <?= e(
+                                        date(
+                                            'd M Y H:i',
+                                            strtotime(
+                                                $p['pengajuan_created_at']
+                                            )
+                                        )
+                                    ) ?>
+
+                                <?php else: ?>
+
+                                    <span class="text-muted">
+                                        -
+                                    </span>
+
+                                <?php endif; ?>
+
+                            </td>
+
+
+                            <!-- AKSI -->
+
+                            <td class="text-center">
+
+                                <div
+                                    class="d-flex justify-content-center gap-1"
+                                >
+
+
+                                    <!-- LIHAT -->
+
+                                    <?php if (
+                                        !empty(
+                                            $p['pengajuan_id']
+                                        )
+                                    ): ?>
+
+                                        <a
+                                            href="<?= $bp ?>admin/detail_pengajuan.php?id=<?= (int) $p['pengajuan_id'] ?>"
+                                            class="btn btn-sm btn-outline-primary"
+                                            title="Lihat Detail"
+                                        >
+
+                                            <i
+                                                class="bi bi-eye-fill"
+                                            ></i>
+
+                                        </a>
+
+                                    <?php endif; ?>
+
+
+                                    <!-- PROSES -->
+
+                                    <?php if (
+                                        !empty(
+                                            $p['pengajuan_id']
+                                        )
+                                    ): ?>
+
+                                        <a
+                                            href="<?= $bp ?>admin/proses_pengajuan.php?id=<?= (int) $p['pengajuan_id'] ?>"
+                                            class="btn btn-sm btn-outline-warning"
+                                            title="Proses Pengajuan"
+                                        >
+
+                                            <i
+                                                class="bi bi-pencil-square"
+                                            ></i>
+
+                                        </a>
+
+                                    <?php endif; ?>
+
+
+                                    <!-- HAPUS -->
+
+                                    <form
+                                        method="POST"
+                                        class="d-inline"
+                                        onsubmit="
+                                            return confirm(
+                                                'Yakin ingin menghapus user ini? Semua pengajuan KTP juga akan dihapus.'
+                                            );
+                                        "
+                                    >
+
+                                        <input
+                                            type="hidden"
+                                            name="user_id"
+                                            value="<?= (int) $p['id'] ?>"
+                                        >
+
+                                        <button
+                                            type="submit"
+                                            name="hapus_user"
+                                            class="btn btn-sm btn-outline-danger"
+                                            title="Hapus User"
+                                        >
+
+                                            <i
+                                                class="bi bi-trash-fill"
+                                            ></i>
+
+                                        </button>
+
+                                    </form>
+
+
+                                </div>
+
+                            </td>
+
+
+                        </tr>
+
+                    <?php endforeach; ?>
+
 
                 <?php endif; ?>
 
 
-                <?php foreach ($daftar as $row): ?>
+                </tbody>
 
-                    <tr>
+            </table>
 
-
-                        <!-- =================================================
-                             NIK
-                        ================================================== -->
-
-                        <td class="fw-semibold">
-
-                            <?= e($row['nik']) ?>
-
-                        </td>
-
-
-                        <!-- =================================================
-                             NAMA
-                        ================================================== -->
-
-                        <td>
-
-                            <?= e($row['nama_pemohon']) ?>
-
-                        </td>
-
-
-                        <!-- =================================================
-                             USERNAME
-                        ================================================== -->
-
-                        <td>
-
-                            <?= e($row['username'] ?? '-') ?>
-
-                        </td>
-
-
-                        <!-- =================================================
-                             LAMPIRAN
-                        ================================================== -->
-
-                        <td>
-
-                            <div class="d-flex flex-column gap-2">
-
-                                <!-- FOTO KTP / SURAT KEHILANGAN -->
-
-                                <?php if (!empty($row['gambar_path'])): ?>
-
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-primary"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#modalGambar<?= (int) $row['id'] ?>"
-                                    >
-
-                                        <i
-                                            class="bi bi-file-earmark-image me-1"
-                                        ></i>
-
-                                        Lihat KTP
-
-                                    </button>
-
-                                <?php else: ?>
-
-                                    <span class="text-muted small">
-
-                                        KTP tidak ada
-
-                                    </span>
-
-                                <?php endif; ?>
-
-
-                                <!-- FOTO DIRI -->
-
-                                <?php if (!empty($row['foto_diri_path'])): ?>
-
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-success"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#modalFotoDiri<?= (int) $row['id'] ?>"
-                                    >
-
-                                        <i
-                                            class="bi bi-person-bounding-box me-1"
-                                        ></i>
-
-                                        Lihat Foto Diri
-
-                                    </button>
-
-                                <?php else: ?>
-
-                                    <span class="text-muted small">
-
-                                        Foto diri tidak ada
-
-                                    </span>
-
-                                <?php endif; ?>
-
-                            </div>
-
-                        </td>
-
-
-                        <!-- =================================================
-                             STATUS
-                        ================================================== -->
-
-                        <td>
-
-                            <?= status_badge($row['status']) ?>
-
-
-                            <?php if (
-                                $row['status'] === 'ditolak'
-                                && !empty($row['alasan_penolakan'])
-                            ): ?>
-
-                                <div class="mt-1">
-
-                                    <small class="text-danger">
-
-                                        <i
-                                            class="bi bi-info-circle me-1"
-                                        ></i>
-
-                                        Ada alasan penolakan
-
-                                    </small>
-
-                                </div>
-
-                            <?php endif; ?>
-
-                        </td>
-
-
-                        <!-- =================================================
-                             TANGGAL
-                        ================================================== -->
-
-                        <td class="text-muted small">
-
-                            <?= e(
-                                date(
-                                    'd M Y, H:i',
-                                    strtotime($row['created_at'])
-                                )
-                            ) ?>
-
-                        </td>
-
-
-                        <!-- =================================================
-                             AKSI
-                        ================================================== -->
-
-                        <td>
-
-                            <button
-                                type="button"
-                                class="btn btn-sm btn-primary"
-                                data-bs-toggle="modal"
-                                data-bs-target="#modalStatus<?= (int) $row['id'] ?>"
-                            >
-
-                                <i
-                                    class="bi bi-pencil-square me-1"
-                                ></i>
-
-                                Ubah
-
-                            </button>
-
-                        </td>
-
-                    </tr>
-
-
-                    <!-- =================================================
-                         MODAL FOTO KTP
-                    ================================================== -->
-
-                    <?php if (!empty($row['gambar_path'])): ?>
-
-                        <div
-                            class="modal fade"
-                            id="modalGambar<?= (int) $row['id'] ?>"
-                            tabindex="-1"
-                            aria-hidden="true"
-                        >
-
-                            <div
-                                class="modal-dialog modal-dialog-centered modal-lg"
-                            >
-
-                                <div class="modal-content">
-
-
-                                    <div class="modal-header">
-
-                                        <h5 class="modal-title">
-
-                                            <i
-                                                class="bi bi-file-earmark-image me-2"
-                                            ></i>
-
-                                            KTP / Surat Kehilangan
-
-                                        </h5>
-
-                                        <button
-                                            type="button"
-                                            class="btn-close"
-                                            data-bs-dismiss="modal"
-                                        ></button>
-
-                                    </div>
-
-
-                                    <div
-                                        class="modal-body text-center p-4"
-                                    >
-
-                                        <img
-                                            src="../uploads/images/<?= e($row['gambar_path']) ?>"
-                                            alt="KTP / Surat Kehilangan"
-                                            class="img-fluid rounded shadow-sm"
-                                            style="
-                                                max-height:70vh;
-                                                object-fit:contain;
-                                            "
-                                        >
-
-                                    </div>
-
-
-                                    <div class="modal-footer">
-
-                                        <a
-                                            href="../uploads/images/<?= e($row['gambar_path']) ?>"
-                                            target="_blank"
-                                            class="btn btn-primary"
-                                        >
-
-                                            <i
-                                                class="bi bi-box-arrow-up-right me-1"
-                                            ></i>
-
-                                            Buka Gambar
-
-                                        </a>
-
-
-                                        <button
-                                            type="button"
-                                            class="btn btn-secondary"
-                                            data-bs-dismiss="modal"
-                                        >
-
-                                            Tutup
-
-                                        </button>
-
-                                    </div>
-
-                                </div>
-
-                            </div>
-
-                        </div>
-
-                    <?php endif; ?>
-
-
-                    <!-- =================================================
-                         MODAL FOTO DIRI
-                    ================================================== -->
-
-                    <?php if (!empty($row['foto_diri_path'])): ?>
-
-                        <div
-                            class="modal fade"
-                            id="modalFotoDiri<?= (int) $row['id'] ?>"
-                            tabindex="-1"
-                            aria-hidden="true"
-                        >
-
-                            <div
-                                class="modal-dialog modal-dialog-centered"
-                            >
-
-                                <div class="modal-content">
-
-
-                                    <div class="modal-header">
-
-                                        <h5 class="modal-title">
-
-                                            <i
-                                                class="bi bi-person-bounding-box me-2"
-                                            ></i>
-
-                                            Foto Diri Pemohon
-
-                                        </h5>
-
-                                        <button
-                                            type="button"
-                                            class="btn-close"
-                                            data-bs-dismiss="modal"
-                                        ></button>
-
-                                    </div>
-
-
-                                    <div
-                                        class="modal-body text-center p-4"
-                                    >
-
-                                        <img
-                                            src="../uploads/<?= e($row['foto_diri_path']) ?>"
-                                            alt="Foto Diri Pemohon"
-                                            class="img-fluid rounded shadow-sm"
-                                            style="
-                                                max-height:65vh;
-                                                object-fit:contain;
-                                            "
-                                        >
-
-                                        <div class="mt-3">
-
-                                            <small class="text-muted">
-
-                                                <?= e($row['nama_pemohon']) ?>
-
-                                            </small>
-
-                                        </div>
-
-                                    </div>
-
-
-                                    <div class="modal-footer">
-
-                                        <a
-                                            href="../uploads/<?= e($row['foto_diri_path']) ?>"
-                                            target="_blank"
-                                            class="btn btn-success"
-                                        >
-
-                                            <i
-                                                class="bi bi-box-arrow-up-right me-1"
-                                            ></i>
-
-                                            Buka Gambar
-
-                                        </a>
-
-
-                                        <button
-                                            type="button"
-                                            class="btn btn-secondary"
-                                            data-bs-dismiss="modal"
-                                        >
-
-                                            Tutup
-
-                                        </button>
-
-                                    </div>
-
-                                </div>
-
-                            </div>
-
-                        </div>
-
-                    <?php endif; ?>
-
-
-                    <!-- =================================================
-                         MODAL UBAH STATUS
-                    ================================================== -->
-
-                    <div
-                        class="modal fade"
-                        id="modalStatus<?= (int) $row['id'] ?>"
-                        tabindex="-1"
-                        aria-hidden="true"
-                    >
-
-                        <div
-                            class="modal-dialog modal-dialog-centered"
-                        >
-
-                            <div class="modal-content">
-
-
-                                <form method="POST">
-
-
-                                    <!-- MODAL HEADER -->
-
-                                    <div class="modal-header">
-
-                                        <h6 class="modal-title fw-bold">
-
-                                            <i
-                                                class="bi bi-pencil-square me-2"
-                                            ></i>
-
-                                            Ubah Status Pengajuan
-
-                                        </h6>
-
-                                        <button
-                                            type="button"
-                                            class="btn-close"
-                                            data-bs-dismiss="modal"
-                                        ></button>
-
-                                    </div>
-
-
-                                    <!-- MODAL BODY -->
-
-                                    <div class="modal-body">
-
-
-                                        <!-- ID -->
-
-                                        <input
-                                            type="hidden"
-                                            name="id"
-                                            value="<?= (int) $row['id'] ?>"
-                                        >
-
-
-                                        <!-- NAMA PEMOHON -->
-
-                                        <div class="mb-3">
-
-                                            <label
-                                                class="form-label fw-semibold"
-                                            >
-
-                                                Nama Pemohon
-
-                                            </label>
-
-                                            <input
-                                                type="text"
-                                                class="form-control"
-                                                value="<?= e($row['nama_pemohon']) ?>"
-                                                readonly
-                                            >
-
-                                        </div>
-
-
-                                        <!-- STATUS -->
-
-                                        <div class="mb-3">
-
-                                            <label
-                                                class="form-label fw-semibold"
-                                            >
-
-                                                Status Pengajuan
-
-                                                <span
-                                                    class="text-danger"
-                                                >
-                                                    *
-                                                </span>
-
-                                            </label>
-
-
-                                            <select
-                                                name="status"
-                                                class="form-select status-select"
-                                                required
-                                                onchange="toggleAlasan(this, <?= (int) $row['id'] ?>)"
-                                            >
-
-                                                <?php foreach (
-                                                    status_options()
-                                                    as $key => $label
-                                                ): ?>
-
-                                                    <option
-                                                        value="<?= e($key) ?>"
-                                                        <?= $row['status'] === $key ? 'selected' : '' ?>
-                                                    >
-
-                                                        <?= e($label) ?>
-
-                                                    </option>
-
-                                                <?php endforeach; ?>
-
-                                            </select>
-
-                                        </div>
-
-
-                                        <!-- =================================================
-                                             ALASAN PENOLAKAN
-                                        ================================================== -->
-
-                                        <div
-                                            class="mb-3"
-                                            id="alasanBox<?= (int) $row['id'] ?>"
-                                            style="<?= $row['status'] === 'ditolak' ? '' : 'display:none;' ?>"
-                                        >
-
-                                            <label
-                                                class="form-label fw-semibold text-danger"
-                                            >
-
-                                                <i
-                                                    class="bi bi-exclamation-circle me-1"
-                                                ></i>
-
-                                                Alasan Penolakan
-
-                                                <span class="text-danger">
-                                                    *
-                                                </span>
-
-                                            </label>
-
-
-                                            <textarea
-                                                name="alasan_penolakan"
-                                                id="alasan<?= (int) $row['id'] ?>"
-                                                class="form-control"
-                                                rows="4"
-                                                maxlength="500"
-                                                placeholder="Tuliskan alasan mengapa pengajuan ditolak..."
-                                                <?= $row['status'] === 'ditolak' ? 'required' : '' ?>
-                                            ><?= e($row['alasan_penolakan'] ?? '') ?></textarea>
-
-
-                                            <div class="form-text">
-
-                                                Maksimal 500 karakter.
-                                                Alasan ini akan dilihat oleh pemohon.
-
-                                            </div>
-
-                                        </div>
-
-
-                                        <!-- INFO JIKA SUDAH DITOLAK -->
-
-                                        <?php if (
-                                            $row['status'] === 'ditolak'
-                                            && !empty($row['alasan_penolakan'])
-                                        ): ?>
-
-                                            <div
-                                                class="alert alert-danger py-2"
-                                            >
-
-                                                <strong>
-
-                                                    Alasan sebelumnya:
-
-                                                </strong>
-
-                                                <br>
-
-                                                <?= nl2br(
-                                                    e($row['alasan_penolakan'])
-                                                ) ?>
-
-                                            </div>
-
-                                        <?php endif; ?>
-
-
-                                    </div>
-
-
-                                    <!-- MODAL FOOTER -->
-
-                                    <div class="modal-footer">
-
-                                        <button
-                                            type="button"
-                                            class="btn btn-outline-secondary"
-                                            data-bs-dismiss="modal"
-                                        >
-
-                                            Batal
-
-                                        </button>
-
-
-                                        <button
-                                            type="submit"
-                                            name="update_status"
-                                            class="btn btn-primary"
-                                        >
-
-                                            <i
-                                                class="bi bi-check-lg me-1"
-                                            ></i>
-
-                                            Simpan Perubahan
-
-                                        </button>
-
-                                    </div>
-
-                                </form>
-
-                            </div>
-
-                        </div>
-
-                    </div>
-
-
-                <?php endforeach; ?>
-
-            </tbody>
-
-        </table>
+        </div>
 
     </div>
 
 </div>
-
-
-<!-- =========================================================
-     JAVASCRIPT
-========================================================= -->
-
-<script>
-
-function toggleAlasan(select, id) {
-
-    const alasanBox =
-        document.getElementById('alasanBox' + id);
-
-    const alasanTextarea =
-        document.getElementById('alasan' + id);
-
-
-    if (!alasanBox || !alasanTextarea) {
-        return;
-    }
-
-
-    if (select.value === 'ditolak') {
-
-        /*
-         * Tampilkan alasan
-         */
-
-        alasanBox.style.display = 'block';
-
-
-        /*
-         * Wajib diisi
-         */
-
-        alasanTextarea.required = true;
-
-
-    } else {
-
-        /*
-         * Sembunyikan alasan
-         */
-
-        alasanBox.style.display = 'none';
-
-
-        /*
-         * Tidak wajib
-         */
-
-        alasanTextarea.required = false;
-
-
-        /*
-         * Kosongkan alasan
-         */
-
-        alasanTextarea.value = '';
-
-    }
-
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| Jalankan saat halaman dibuka
-|--------------------------------------------------------------------------
-*/
-
-document.addEventListener(
-    'DOMContentLoaded',
-    function () {
-
-        const selects =
-            document.querySelectorAll('.status-select');
-
-
-        selects.forEach(
-            function (select) {
-
-                const onchange =
-                    select.getAttribute('onchange');
-
-
-                if (!onchange) {
-                    return;
-                }
-
-
-                const match =
-                    onchange.match(/\d+/);
-
-
-                if (match) {
-
-                    toggleAlasan(
-                        select,
-                        match[0]
-                    );
-
-                }
-
-            }
-        );
-
-    }
-);
-
-</script>
 
 
 <?php
