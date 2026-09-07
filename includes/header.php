@@ -118,7 +118,7 @@ $roleUser = $_SESSION['role'] ?? '';
             flex-direction: column;
 
             box-shadow:
-                4px 0 30px rgba(11,10,31,.25);
+                4px 0 20px rgba(11,10,31,.25);
         }
 
         .sidebar::-webkit-scrollbar {

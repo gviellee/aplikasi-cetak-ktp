@@ -5,134 +5,127 @@ require_once __DIR__ . '/../includes/functions.php';
 
 require_admin();
 
-$errors = [];
-$success = '';
 
 /*
 |--------------------------------------------------------------------------
-| HAPUS USER
+| HAPUS DATA PEMOHON
 |--------------------------------------------------------------------------
 */
 
-if (
-    $_SERVER['REQUEST_METHOD'] === 'POST' &&
-    isset($_POST['hapus_user'])
-) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    $userId = (int) ($_POST['user_id'] ?? 0);
+    $action = $_POST['action'] ?? '';
 
-    if ($userId <= 0) {
+    if ($action === 'hapus') {
 
-        $errors[] = 'ID user tidak valid.';
+        $userId = (int) ($_POST['user_id'] ?? 0);
 
-    } else {
+        if ($userId > 0) {
 
-        try {
-
-            $stmt = $pdo->prepare("
-                SELECT id, username, role
-                FROM users
-                WHERE id = ?
-                LIMIT 1
-            ");
-
-            $stmt->execute([$userId]);
-
-            $user = $stmt->fetch();
-
-            if (!$user) {
-
-                $errors[] = 'User tidak ditemukan.';
-
-            } elseif ($user['role'] === 'admin') {
-
-                $errors[] =
-                    'User admin tidak dapat dihapus dari halaman ini.';
-
-            } else {
+            try {
 
                 /*
-                | Ambil file pengajuan terlebih dahulu
+                | Ambil semua file pengajuan milik user
                 */
 
-                $stmt = $pdo->prepare("
-                    SELECT gambar_path, foto_diri_path
+                $stmtFile = $pdo->prepare("
+                    SELECT
+                        gambar_path,
+                        foto_diri_path
                     FROM pengajuan_ktp
                     WHERE user_id = ?
                 ");
 
-                $stmt->execute([$userId]);
+                $stmtFile->execute([$userId]);
 
-                $files = $stmt->fetchAll();
+                $files = $stmtFile->fetchAll(PDO::FETCH_ASSOC);
 
 
                 /*
-                | Hapus pengajuan
+                | Hapus data pengajuan
                 */
 
-                $stmt = $pdo->prepare("
+                $stmtDeletePengajuan = $pdo->prepare("
                     DELETE FROM pengajuan_ktp
                     WHERE user_id = ?
                 ");
 
-                $stmt->execute([$userId]);
+                $stmtDeletePengajuan->execute([$userId]);
 
 
                 /*
-                | Hapus user
+                | Hapus file fisik
                 */
 
-                $stmt = $pdo->prepare("
-                    DELETE FROM users
-                    WHERE id = ?
-                    AND role = 'user'
-                ");
+                $uploadDir =
+                    __DIR__ .
+                    '/../uploads/images/';
 
-                $stmt->execute([$userId]);
-
-
-                /*
-                | Hapus file
-                */
 
                 foreach ($files as $file) {
 
                     if (!empty($file['gambar_path'])) {
 
-                        $path =
-                            UPLOAD_DIR .
-                            basename($file['gambar_path']);
+                        $fileName =
+                            basename(
+                                $file['gambar_path']
+                            );
 
-                        if (is_file($path)) {
-                            @unlink($path);
+                        $filePath =
+                            $uploadDir .
+                            $fileName;
+
+                        if (is_file($filePath)) {
+                            @unlink($filePath);
                         }
                     }
 
 
                     if (!empty($file['foto_diri_path'])) {
 
-                        $path =
-                            UPLOAD_DIR .
-                            basename($file['foto_diri_path']);
+                        $fileName =
+                            basename(
+                                $file['foto_diri_path']
+                            );
 
-                        if (is_file($path)) {
-                            @unlink($path);
+                        $filePath =
+                            $uploadDir .
+                            $fileName;
+
+                        if (is_file($filePath)) {
+                            @unlink($filePath);
                         }
                     }
                 }
 
 
-                $success =
-                    "User '" .
-                    $user['username'] .
-                    "' berhasil dihapus.";
+                /*
+                | Hapus user
+                */
+
+                $stmtDeleteUser = $pdo->prepare("
+                    DELETE FROM users
+                    WHERE id = ?
+                    AND role = 'user'
+                ");
+
+                $stmtDeleteUser->execute([$userId]);
+
+
+                header(
+                    'Location: pemohon.php?success=deleted'
+                );
+
+                exit;
+
+            } catch (PDOException $e) {
+
+                header(
+                    'Location: pemohon.php?error=delete'
+                );
+
+                exit;
             }
-
-        } catch (PDOException $e) {
-
-            $errors[] =
-                'Gagal menghapus user: ' .
-                $e->getMessage();
         }
     }
 }
@@ -140,110 +133,64 @@ if (
 
 /*
 |--------------------------------------------------------------------------
-| AMBIL DATA PEMOHON
-|--------------------------------------------------------------------------
-|
-| Setiap user hanya ditampilkan satu kali.
-| Pengajuan yang ditampilkan adalah pengajuan terbaru.
+| PESAN
 |--------------------------------------------------------------------------
 */
 
-try {
+$success = '';
+$error = '';
 
-    $sql = "
-        SELECT
-            u.id,
-            u.username,
-            u.role,
-            u.created_at,
+if (
+    isset($_GET['success']) &&
+    $_GET['success'] === 'deleted'
+) {
 
-            p.id AS pengajuan_id,
-            p.nik,
-            p.nama_pemohon,
-            p.gambar_path,
-            p.foto_diri_path,
-            p.status,
-            p.created_at AS pengajuan_created_at
+    $success =
+        'Data pemohon berhasil dihapus.';
+}
 
-        FROM users u
+if (
+    isset($_GET['error']) &&
+    $_GET['error'] === 'delete'
+) {
 
-        LEFT JOIN pengajuan_ktp p
-            ON p.id = (
-                SELECT p2.id
-                FROM pengajuan_ktp p2
-                WHERE p2.user_id = u.id
-                ORDER BY p2.created_at DESC, p2.id DESC
-                LIMIT 1
-            )
-
-        WHERE u.role = 'user'
-
-        ORDER BY u.created_at DESC
-    ";
-
-    $stmt = $pdo->query($sql);
-
-    $pemohon = $stmt->fetchAll();
-
-} catch (PDOException $e) {
-
-    $pemohon = [];
-
-    $errors[] =
-        'Gagal mengambil data pemohon: ' .
-        $e->getMessage();
+    $error =
+        'Data pemohon gagal dihapus.';
 }
 
 
 /*
 |--------------------------------------------------------------------------
-| HITUNG STATUS
+| AMBIL DATA PENGAJUAN
 |--------------------------------------------------------------------------
 */
 
-$totalPemohon = count($pemohon);
+$stmt = $pdo->query("
+    SELECT
+        p.id,
+        p.user_id,
+        p.nik,
+        p.nama_pemohon,
+        p.gambar_path,
+        p.foto_diri_path,
+        p.status,
+        p.alasan_penolakan,
+        p.created_at,
+        u.username AS user_pengaju
+    FROM pengajuan_ktp p
+    LEFT JOIN users u
+        ON u.id = p.user_id
+    ORDER BY p.created_at DESC
+");
 
-$totalMenunggu = 0;
-$totalDiproses = 0;
-$totalSelesai = 0;
-$totalDitolak = 0;
-$totalBelum = 0;
+$pengajuan = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
-foreach ($pemohon as $p) {
-
-    $status = strtolower(
-        trim(
-            $p['status'] ?? ''
-        )
-    );
-
-
-    if (
-        $status === 'pending' ||
-        $status === 'menunggu'
-    ) {
-
-        $totalMenunggu++;
-
-    } elseif ($status === 'diproses') {
-
-        $totalDiproses++;
-
-    } elseif ($status === 'selesai') {
-
-        $totalSelesai++;
-
-    } elseif ($status === 'ditolak') {
-
-        $totalDitolak++;
-
-    } else {
-
-        $totalBelum++;
-    }
-}
-
+/*
+|--------------------------------------------------------------------------
+| HEADER
+|--------------------------------------------------------------------------
+*/
 
 $pageTitle = 'Daftar Pemohon';
 
@@ -252,313 +199,374 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 
 
+<style>
+
+/*
+|--------------------------------------------------------------------------
+| HEADER HALAMAN
+|--------------------------------------------------------------------------
+*/
+
+.page-header-box {
+
+    background: linear-gradient(
+        135deg,
+        #312e81,
+        #1d4ed8
+    );
+
+    border-radius: 18px;
+
+    padding: 28px;
+
+    color: white;
+
+    margin-bottom: 24px;
+
+    box-shadow:
+        0 10px 30px
+        rgba(30, 64, 175, .15);
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| TABLE
+|--------------------------------------------------------------------------
+*/
+
+.pengajuan-table {
+    min-width: 1000px;
+}
+
+.pengajuan-table thead th {
+
+    background: #f5f3ff;
+
+    color: #312e81;
+
+    font-size: 13px;
+
+    font-weight: 700;
+
+    white-space: nowrap;
+
+    padding: 15px;
+}
+
+.pengajuan-table tbody td {
+
+    padding: 15px;
+
+    vertical-align: middle;
+
+    font-size: 14px;
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| USER PENGAJU
+|--------------------------------------------------------------------------
+*/
+
+.user-pengaju {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+}
+
+.user-icon {
+
+    width: 36px;
+
+    height: 36px;
+
+    border-radius: 50%;
+
+    background: #eef2ff;
+
+    color: #312e81;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    flex-shrink: 0;
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| STATUS
+|--------------------------------------------------------------------------
+*/
+
+.status-badge {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    padding: 7px 13px;
+
+    border-radius: 20px;
+
+    font-size: 12px;
+
+    font-weight: 700;
+
+    white-space: nowrap;
+}
+
+.status-menunggu {
+
+    background: #fff7ed;
+
+    color: #c2410c;
+
+    border: 1px solid #fed7aa;
+}
+
+.status-selesai {
+
+    background: #ecfdf5;
+
+    color: #047857;
+
+    border: 1px solid #a7f3d0;
+}
+
+.status-ditolak {
+
+    background: #fef2f2;
+
+    color: #dc2626;
+
+    border: 1px solid #fecaca;
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| AKSI
+|--------------------------------------------------------------------------
+*/
+
+.aksi-wrapper {
+
+    display: flex;
+
+    gap: 7px;
+
+    flex-wrap: wrap;
+}
+
+.btn-lampiran {
+
+    background: #eef2ff;
+
+    color: #3730a3;
+
+    border: 1px solid #c7d2fe;
+
+    border-radius: 8px;
+
+    padding: 8px 11px;
+
+    font-size: 12px;
+
+    font-weight: 600;
+
+    text-decoration: none;
+
+    white-space: nowrap;
+}
+
+.btn-lampiran:hover {
+
+    background: #e0e7ff;
+
+    color: #312e81;
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| EMPTY
+|--------------------------------------------------------------------------
+*/
+
+.empty-box {
+
+    text-align: center;
+
+    padding: 60px 20px;
+
+    color: #6b7280;
+}
+
+.empty-box i {
+
+    font-size: 45px;
+
+    display: block;
+
+    margin-bottom: 12px;
+
+    color: #9ca3af;
+}
+
+</style>
+
+
 <!-- =========================================================
      HEADER
 ========================================================= -->
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="page-header-box">
 
-    <div>
-
-        <h5 class="fw-bold mb-1">
-
-            <i
-                class="bi bi-people-fill me-2"
-                style="color:#7c3aed;"
-            ></i>
-
-            Daftar Pemohon
-
-        </h5>
-
-        <p class="text-muted small mb-0">
-
-            Kelola data pemohon dan pengajuan cetak KTP.
-
-        </p>
-
-    </div>
-
-
-    <a
-        href="<?= $bp ?>admin/tambah_user.php"
-        class="btn btn-primary"
+    <div
+        class="d-flex
+               justify-content-between
+               align-items-center
+               flex-wrap
+               gap-3"
     >
 
-        <i class="bi bi-person-plus-fill me-1"></i>
+        <div>
 
-        Tambah User
+            <h4 class="fw-bold mb-1">
 
-    </a>
+                <i
+                    class="bi bi-people-fill me-2"
+                ></i>
 
-</div>
+                Daftar Pengajuan KTP
 
+            </h4>
 
-<!-- =========================================================
-     ALERT
-========================================================= -->
+            <p class="mb-0 opacity-75">
 
-<?php if ($success): ?>
+                Kelola data pemohon dan pengajuan
+                cetak KTP.
 
-    <div class="alert alert-success">
-
-        <i class="bi bi-check-circle-fill me-1"></i>
-
-        <?= e($success) ?>
-
-    </div>
-
-<?php endif; ?>
-
-
-<?php if ($errors): ?>
-
-    <div class="alert alert-danger">
-
-        <ul class="mb-0 ps-3">
-
-            <?php foreach ($errors as $error): ?>
-
-                <li>
-                    <?= e($error) ?>
-                </li>
-
-            <?php endforeach; ?>
-
-        </ul>
-
-    </div>
-
-<?php endif; ?>
-
-
-<!-- =========================================================
-     STATISTIK
-========================================================= -->
-
-<div class="row g-3 mb-4">
-
-
-    <div class="col-xl-2 col-md-4 col-6">
-
-        <div class="stat-card">
-
-            <div
-                class="stat-icon"
-                style="background:linear-gradient(135deg,#7c3aed,#a78bfa);"
-            >
-
-                <i class="bi bi-people-fill"></i>
-
-            </div>
-
-            <div class="stat-value">
-                <?= $totalPemohon ?>
-            </div>
-
-            <div class="stat-label">
-                Total Pemohon
-            </div>
+            </p>
 
         </div>
 
-    </div>
 
+        <div>
 
-    <div class="col-xl-2 col-md-4 col-6">
-
-        <div class="stat-card">
-
-            <div
-                class="stat-icon"
-                style="background:linear-gradient(135deg,#f59e0b,#fbbf24);"
+            <span
+                class="badge bg-white text-primary px-3 py-2"
             >
 
-                <i class="bi bi-hourglass-split"></i>
-
-            </div>
-
-            <div class="stat-value">
-                <?= $totalMenunggu ?>
-            </div>
-
-            <div class="stat-label">
-                Menunggu
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <div class="col-xl-2 col-md-4 col-6">
-
-        <div class="stat-card">
-
-            <div
-                class="stat-icon"
-                style="background:linear-gradient(135deg,#7c3aed,#a78bfa);"
-            >
-
-                <i class="bi bi-arrow-repeat"></i>
-
-            </div>
-
-            <div class="stat-value">
-                <?= $totalDiproses ?>
-            </div>
-
-            <div class="stat-label">
-                Diproses
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <div class="col-xl-2 col-md-4 col-6">
-
-        <div class="stat-card">
-
-            <div
-                class="stat-icon"
-                style="background:linear-gradient(135deg,#059669,#10b981);"
-            >
-
-                <i class="bi bi-check-circle-fill"></i>
-
-            </div>
-
-            <div class="stat-value">
-                <?= $totalSelesai ?>
-            </div>
-
-            <div class="stat-label">
-                Selesai
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <div class="col-xl-2 col-md-4 col-6">
-
-        <div class="stat-card">
-
-            <div
-                class="stat-icon"
-                style="background:linear-gradient(135deg,#dc2626,#ef4444);"
-            >
-
-                <i class="bi bi-x-circle-fill"></i>
-
-            </div>
-
-            <div class="stat-value">
-                <?= $totalDitolak ?>
-            </div>
-
-            <div class="stat-label">
-                Ditolak
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <div class="col-xl-2 col-md-4 col-6">
-
-        <div class="stat-card">
-
-            <div
-                class="stat-icon"
-                style="background:linear-gradient(135deg,#64748b,#94a3b8);"
-            >
-
-                <i class="bi bi-dash-circle-fill"></i>
-
-            </div>
-
-            <div class="stat-value">
-                <?= $totalBelum ?>
-            </div>
-
-            <div class="stat-label">
-                Belum Mengajukan
-            </div>
-
-        </div>
-
-    </div>
-
-</div>
-
-
-<!-- =========================================================
-     TABEL
-========================================================= -->
-
-<div class="card">
-
-    <div class="card-body p-0">
-
-
-        <div
-            class="d-flex justify-content-between align-items-center p-4"
-        >
-
-            <div>
-
-                <h6 class="fw-bold mb-1">
-
-                    <i
-                        class="bi bi-list-ul me-1"
-                        style="color:#7c3aed;"
-                    ></i>
-
-                    Data Pemohon
-
-                </h6>
-
-                <span class="text-muted small">
-
-                    Status berdasarkan pengajuan terbaru.
-
-                </span>
-
-            </div>
-
-
-            <span class="badge bg-primary">
-
-                <?= $totalPemohon ?> Pemohon
+                <?= count($pengajuan) ?> Pengajuan
 
             </span>
 
         </div>
 
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     PESAN
+========================================================= -->
+
+<?php if ($success !== ''): ?>
+
+    <div
+        class="alert alert-success
+               alert-dismissible fade show"
+    >
+
+        <i
+            class="bi bi-check-circle-fill me-2"
+        ></i>
+
+        <?= e($success) ?>
+
+
+        <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="alert"
+        ></button>
+
+    </div>
+
+<?php endif; ?>
+
+
+<?php if ($error !== ''): ?>
+
+    <div
+        class="alert alert-danger
+               alert-dismissible fade show"
+    >
+
+        <i
+            class="bi bi-exclamation-triangle-fill me-2"
+        ></i>
+
+        <?= e($error) ?>
+
+
+        <button
+            type="button"
+            class="btn-close"
+            data-bs-dismiss="alert"
+        ></button>
+
+    </div>
+
+<?php endif; ?>
+
+
+<!-- =========================================================
+     TABLE
+========================================================= -->
+
+<div class="card border-0 shadow-sm">
+
+    <div class="card-body p-0">
 
         <div class="table-responsive">
 
-            <table class="table table-hover align-middle mb-0">
+            <table
+                class="table table-hover
+                       align-middle
+                       mb-0
+                       pengajuan-table"
+            >
 
                 <thead>
 
                     <tr>
 
-                        <th width="50">
-                            #
-                        </th>
-
                         <th>
-                            Pemohon
+                            No
                         </th>
 
                         <th>
                             NIK
+                        </th>
+
+                        <th>
+                            Nama Pemohon
+                        </th>
+
+                        <th>
+                            User Pengaju
                         </th>
 
                         <th>
@@ -569,7 +577,7 @@ require_once __DIR__ . '/../includes/header.php';
                             Tanggal Pengajuan
                         </th>
 
-                        <th class="text-center">
+                        <th>
                             Aksi
                         </th>
 
@@ -580,23 +588,28 @@ require_once __DIR__ . '/../includes/header.php';
 
                 <tbody>
 
-
-                <?php if (!$pemohon): ?>
+                <?php if (!$pengajuan): ?>
 
                     <tr>
 
                         <td
-                            colspan="6"
-                            class="text-center py-5"
+                            colspan="7"
+                            class="p-0"
                         >
 
-                            <i
-                                class="bi bi-people fs-1 text-muted"
-                            ></i>
+                            <div class="empty-box">
 
-                            <div class="fw-semibold mt-2">
+                                <i
+                                    class="bi bi-inbox"
+                                ></i>
 
-                                Belum ada pemohon
+                                <strong>
+                                    Belum ada pengajuan
+                                </strong>
+
+                                <div class="small mt-1">
+                                    Data pengajuan akan muncul di sini.
+                                </div>
 
                             </div>
 
@@ -604,19 +617,63 @@ require_once __DIR__ . '/../includes/header.php';
 
                     </tr>
 
-
                 <?php else: ?>
 
 
-                    <?php foreach ($pemohon as $index => $p): ?>
+                    <?php foreach (
+                        $pengajuan as $index => $row
+                    ): ?>
 
                         <?php
 
-                        $status = strtolower(
-                            trim(
-                                $p['status'] ?? ''
-                            )
-                        );
+                        $status =
+                            strtolower(
+                                trim(
+                                    $row['status'] ?? ''
+                                )
+                            );
+
+
+                        if (
+                            $status === 'pending' ||
+                            $status === 'menunggu' ||
+                            $status === 'diproses'
+                        ) {
+
+                            $statusText =
+                                'Menunggu';
+
+                            $statusClass =
+                                'status-menunggu';
+
+                        } elseif (
+                            $status === 'selesai'
+                        ) {
+
+                            $statusText =
+                                'Selesai';
+
+                            $statusClass =
+                                'status-selesai';
+
+                        } elseif (
+                            $status === 'ditolak'
+                        ) {
+
+                            $statusText =
+                                'Ditolak';
+
+                            $statusClass =
+                                'status-ditolak';
+
+                        } else {
+
+                            $statusText =
+                                ucfirst($status);
+
+                            $statusClass =
+                                'status-menunggu';
+                        }
 
                         ?>
 
@@ -624,88 +681,11 @@ require_once __DIR__ . '/../includes/header.php';
                         <tr>
 
 
-                            <!-- NOMOR -->
+                            <!-- NO -->
 
-                            <td>
+                            <td class="fw-semibold">
+
                                 <?= $index + 1 ?>
-                            </td>
-
-
-                            <!-- PEMOHON -->
-
-                            <td>
-
-                                <div
-                                    class="d-flex align-items-center gap-2"
-                                >
-
-                                    <div
-                                        style="
-                                            width:42px;
-                                            height:42px;
-                                            border-radius:50%;
-                                            background:linear-gradient(
-                                                135deg,
-                                                #7c3aed,
-                                                #a78bfa
-                                            );
-                                            display:flex;
-                                            align-items:center;
-                                            justify-content:center;
-                                            color:white;
-                                            font-weight:700;
-                                        "
-                                    >
-
-                                        <?= strtoupper(
-                                            substr(
-                                                $p['username'],
-                                                0,
-                                                1
-                                            )
-                                        ) ?>
-
-                                    </div>
-
-
-                                    <div>
-
-                                        <div class="fw-bold">
-
-                                            <?= e(
-                                                $p['username']
-                                            ) ?>
-
-                                        </div>
-
-
-                                        <?php if (
-                                            !empty(
-                                                $p['nama_pemohon']
-                                            )
-                                        ): ?>
-
-                                            <small class="text-muted">
-
-                                                <?= e(
-                                                    $p['nama_pemohon']
-                                                ) ?>
-
-                                            </small>
-
-                                        <?php else: ?>
-
-                                            <small class="text-muted">
-
-                                                Belum mengajukan
-
-                                            </small>
-
-                                        <?php endif; ?>
-
-                                    </div>
-
-                                </div>
 
                             </td>
 
@@ -714,19 +694,69 @@ require_once __DIR__ . '/../includes/header.php';
 
                             <td>
 
-                                <?php if (
-                                    !empty($p['nik'])
-                                ): ?>
+                                <span
+                                    class="fw-semibold"
+                                >
 
-                                    <?= e($p['nik']) ?>
+                                    <?= e(
+                                        $row['nik']
+                                    ) ?>
 
-                                <?php else: ?>
+                                </span>
 
-                                    <span class="text-muted">
-                                        -
-                                    </span>
+                            </td>
 
-                                <?php endif; ?>
+
+                            <!-- NAMA -->
+
+                            <td>
+
+                                <?= e(
+                                    $row['nama_pemohon']
+                                ) ?>
+
+                            </td>
+
+
+                            <!-- USER PENGAJU -->
+
+                            <td>
+
+                                <div class="user-pengaju">
+
+                                    <div class="user-icon">
+
+                                        <i
+                                            class="bi bi-person-fill"
+                                        ></i>
+
+                                    </div>
+
+
+                                    <div>
+
+                                        <div
+                                            class="fw-semibold"
+                                        >
+
+                                            <?= e(
+                                                $row['user_pengaju']
+                                                ?? '-'
+                                            ) ?>
+
+                                        </div>
+
+                                        <small
+                                            class="text-muted"
+                                        >
+
+                                            User yang mengajukan
+
+                                        </small>
+
+                                    </div>
+
+                                </div>
 
                             </td>
 
@@ -735,76 +765,18 @@ require_once __DIR__ . '/../includes/header.php';
 
                             <td>
 
-                                <?php if (
-                                    $status === 'pending' ||
-                                    $status === 'menunggu'
-                                ): ?>
+                                <span
+                                    class="
+                                        status-badge
+                                        <?= $statusClass ?>
+                                    "
+                                >
 
-                                    <span
-                                        class="status-badge status-menunggu"
-                                    >
+                                    <?= e(
+                                        $statusText
+                                    ) ?>
 
-                                        <i class="bi bi-hourglass-split me-1"></i>
-
-                                        Menunggu
-
-                                    </span>
-
-
-                                <?php elseif (
-                                    $status === 'diproses'
-                                ): ?>
-
-                                    <span
-                                        class="status-badge status-diproses"
-                                    >
-
-                                        <i class="bi bi-arrow-repeat me-1"></i>
-
-                                        Diproses
-
-                                    </span>
-
-
-                                <?php elseif (
-                                    $status === 'selesai'
-                                ): ?>
-
-                                    <span
-                                        class="status-badge status-selesai"
-                                    >
-
-                                        <i class="bi bi-check-circle-fill me-1"></i>
-
-                                        Selesai
-
-                                    </span>
-
-
-                                <?php elseif (
-                                    $status === 'ditolak'
-                                ): ?>
-
-                                    <span
-                                        class="status-badge status-ditolak"
-                                    >
-
-                                        <i class="bi bi-x-circle-fill me-1"></i>
-
-                                        Ditolak
-
-                                    </span>
-
-
-                                <?php else: ?>
-
-                                    <span class="badge bg-secondary">
-
-                                        Belum Mengajukan
-
-                                    </span>
-
-                                <?php endif; ?>
+                                </span>
 
                             </td>
 
@@ -813,120 +785,71 @@ require_once __DIR__ . '/../includes/header.php';
 
                             <td>
 
-                                <?php if (
-                                    !empty(
-                                        $p['pengajuan_created_at']
-                                    )
-                                ): ?>
+                                <div
+                                    class="fw-semibold"
+                                >
 
                                     <?= e(
                                         date(
-                                            'd M Y H:i',
+                                            'd M Y',
                                             strtotime(
-                                                $p['pengajuan_created_at']
+                                                $row['created_at']
                                             )
                                         )
                                     ) ?>
 
-                                <?php else: ?>
+                                </div>
 
-                                    <span class="text-muted">
-                                        -
-                                    </span>
+                                <small
+                                    class="text-muted"
+                                >
 
-                                <?php endif; ?>
+                                    <?= e(
+                                        date(
+                                            'H:i',
+                                            strtotime(
+                                                $row['created_at']
+                                            )
+                                        )
+                                    ) ?>
+
+                                </small>
 
                             </td>
 
 
-                            <!-- AKSI -->
+                            <!-- =================================================
+                                 AKSI
+                                 STATUS BUTTON SUDAH DIHAPUS
+                            ================================================== -->
 
-                            <td class="text-center">
+                            <td>
 
                                 <div
-                                    class="d-flex justify-content-center gap-1"
+                                    class="aksi-wrapper"
                                 >
 
-
-                                    <!-- LIHAT -->
-
-                                    <?php if (
-                                        !empty(
-                                            $p['pengajuan_id']
-                                        )
-                                    ): ?>
-
-                                        <a
-                                            href="<?= $bp ?>admin/detail_pengajuan.php?id=<?= (int) $p['pengajuan_id'] ?>"
-                                            class="btn btn-sm btn-outline-primary"
-                                            title="Lihat Detail"
-                                        >
-
-                                            <i
-                                                class="bi bi-eye-fill"
-                                            ></i>
-
-                                        </a>
-
-                                    <?php endif; ?>
-
-
-                                    <!-- PROSES -->
-
-                                    <?php if (
-                                        !empty(
-                                            $p['pengajuan_id']
-                                        )
-                                    ): ?>
-
-                                        <a
-                                            href="<?= $bp ?>admin/proses_pengajuan.php?id=<?= (int) $p['pengajuan_id'] ?>"
-                                            class="btn btn-sm btn-outline-warning"
-                                            title="Proses Pengajuan"
-                                        >
-
-                                            <i
-                                                class="bi bi-pencil-square"
-                                            ></i>
-
-                                        </a>
-
-                                    <?php endif; ?>
-
-
-                                    <!-- HAPUS -->
-
-                                    <form
-                                        method="POST"
-                                        class="d-inline"
-                                        onsubmit="
-                                            return confirm(
-                                                'Yakin ingin menghapus user ini? Semua pengajuan KTP juga akan dihapus.'
-                                            );
+                                    <a
+                                        href="
+                                            proses/pengajuan.php?id=
+                                            <?= (int)
+                                                $row['id'] ?>
                                         "
+                                        class="btn-lampiran"
+                                        title="Lihat lampiran"
                                     >
 
-                                        <input
-                                            type="hidden"
-                                            name="user_id"
-                                            value="<?= (int) $p['id'] ?>"
-                                        >
+                                        <i
+                                            class="
+                                                bi
+                                                bi-paperclip
+                                                me-1
+                                            "
+                                        ></i>
 
-                                        <button
-                                            type="submit"
-                                            name="hapus_user"
-                                            class="btn btn-sm btn-outline-danger"
-                                            title="Hapus User"
-                                        >
+                                        Lihat Lampiran
 
-                                            <i
-                                                class="bi bi-trash-fill"
-                                            ></i>
-
-                                        </button>
-
-                                    </form>
-
+                                    </a>
 
                                 </div>
 
@@ -935,11 +858,10 @@ require_once __DIR__ . '/../includes/header.php';
 
                         </tr>
 
+
                     <?php endforeach; ?>
 
-
                 <?php endif; ?>
-
 
                 </tbody>
 

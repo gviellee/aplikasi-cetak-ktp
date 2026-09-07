@@ -16,14 +16,48 @@ $old = [
 
 /*
 |--------------------------------------------------------------------------
-| PROSES FORM PENGAJUAN
+| KONFIGURASI UPLOAD
+|--------------------------------------------------------------------------
+|
+| File fisik benar-benar disimpan ke:
+|
+| aplikasi-cetak-ktp/uploads/images/
+|
+*/
+
+$uploadDir = __DIR__ . '/../uploads/images/';
+
+
+/*
+|--------------------------------------------------------------------------
+| PASTIKAN FOLDER UPLOAD ADA
+|--------------------------------------------------------------------------
+*/
+
+if (!is_dir($uploadDir)) {
+
+    if (!mkdir($uploadDir, 0777, true)) {
+
+        $errors[] =
+            'Folder upload tidak dapat dibuat.';
+    }
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| PROSES FORM
 |--------------------------------------------------------------------------
 */
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $nik = trim($_POST['nik'] ?? '');
-    $nama_pemohon = trim($_POST['nama_pemohon'] ?? '');
+
+    $nama_pemohon = trim(
+        $_POST['nama_pemohon'] ?? ''
+    );
+
 
     $old = [
         'nik' => $nik,
@@ -59,19 +93,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /*
     |--------------------------------------------------------------------------
-    | VALIDASI DOKUMEN KTP / SURAT KEHILANGAN
+    | AMBIL FILE
     |--------------------------------------------------------------------------
     */
 
-    $fileCheck = validate_file_upload(
-        $_FILES['dokumen'] ?? null
-    );
+    $dokumen = $_FILES['dokumen'] ?? null;
 
-    if (!$fileCheck['valid']) {
+    $fotoDiri = $_FILES['foto_diri'] ?? null;
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | VALIDASI DOKUMEN KTP
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+        !$dokumen ||
+        !isset($dokumen['error']) ||
+        $dokumen['error'] === UPLOAD_ERR_NO_FILE
+    ) {
 
         $errors[] =
-            'Dokumen KTP / Surat Kehilangan: ' .
-            $fileCheck['message'];
+            'Foto KTP / Surat Kehilangan wajib diunggah.';
+
+    } elseif ($dokumen['error'] !== UPLOAD_ERR_OK) {
+
+        $errors[] =
+            'Foto KTP / Surat Kehilangan gagal diunggah.';
     }
 
 
@@ -80,8 +129,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     | VALIDASI FOTO DIRI
     |--------------------------------------------------------------------------
     */
-
-    $fotoDiri = $_FILES['foto_diri'] ?? null;
 
     if (
         !$fotoDiri ||
@@ -95,17 +142,133 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($fotoDiri['error'] !== UPLOAD_ERR_OK) {
 
         $errors[] =
-            'Foto diri gagal diunggah. Silakan coba kembali.';
+            'Foto diri gagal diunggah.';
+    }
 
-    } else {
+
+    /*
+    |--------------------------------------------------------------------------
+    | VALIDASI FILE
+    |--------------------------------------------------------------------------
+    */
+
+    $allowedExtensions = [
+        'jpg',
+        'jpeg',
+        'png'
+    ];
+
+    $allowedMime = [
+        'image/jpeg',
+        'image/png'
+    ];
+
+    $maxSize = 5 * 1024 * 1024;
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | VALIDASI DOKUMEN
+    |--------------------------------------------------------------------------
+    */
+
+    $dokumenExtension = '';
+
+    if (
+        $dokumen &&
+        isset($dokumen['error']) &&
+        $dokumen['error'] === UPLOAD_ERR_OK
+    ) {
 
         /*
-        |--------------------------------------------------------------------------
-        | CEK UKURAN FOTO
-        |--------------------------------------------------------------------------
+        | Cek ukuran
         */
 
-        if ($fotoDiri['size'] > MAX_FILE_SIZE) {
+        if ($dokumen['size'] > $maxSize) {
+
+            $errors[] =
+                'Ukuran foto KTP maksimal 5 MB.';
+        }
+
+
+        /*
+        | Cek ekstensi
+        */
+
+        $dokumenExtension = strtolower(
+            pathinfo(
+                $dokumen['name'],
+                PATHINFO_EXTENSION
+            )
+        );
+
+
+        if (
+            !in_array(
+                $dokumenExtension,
+                $allowedExtensions,
+                true
+            )
+        ) {
+
+            $errors[] =
+                'Foto KTP hanya boleh JPG, JPEG, atau PNG.';
+        }
+
+
+        /*
+        | Cek MIME
+        */
+
+        $finfo = finfo_open(
+            FILEINFO_MIME_TYPE
+        );
+
+
+        if ($finfo) {
+
+            $dokumenMime = finfo_file(
+                $finfo,
+                $dokumen['tmp_name']
+            );
+
+            finfo_close($finfo);
+
+
+            if (
+                !in_array(
+                    $dokumenMime,
+                    $allowedMime,
+                    true
+                )
+            ) {
+
+                $errors[] =
+                    'Format foto KTP tidak valid.';
+            }
+        }
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | VALIDASI FOTO DIRI
+    |--------------------------------------------------------------------------
+    */
+
+    $fotoDiriExtension = '';
+
+    if (
+        $fotoDiri &&
+        isset($fotoDiri['error']) &&
+        $fotoDiri['error'] === UPLOAD_ERR_OK
+    ) {
+
+        /*
+        | Cek ukuran
+        */
+
+        if ($fotoDiri['size'] > $maxSize) {
 
             $errors[] =
                 'Ukuran foto diri maksimal 5 MB.';
@@ -113,43 +276,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
         /*
-        |--------------------------------------------------------------------------
-        | CEK EKSTENSI
-        |--------------------------------------------------------------------------
+        | Cek ekstensi
         */
 
-        $extension = strtolower(
+        $fotoDiriExtension = strtolower(
             pathinfo(
                 $fotoDiri['name'],
                 PATHINFO_EXTENSION
             )
         );
 
-        if (!in_array($extension, ALLOWED_EXT, true)) {
+
+        if (
+            !in_array(
+                $fotoDiriExtension,
+                $allowedExtensions,
+                true
+            )
+        ) {
 
             $errors[] =
-                'Foto diri hanya boleh berformat JPG, JPEG, atau PNG.';
+                'Foto diri hanya boleh JPG, JPEG, atau PNG.';
         }
 
 
         /*
-        |--------------------------------------------------------------------------
-        | CEK MIME TYPE
-        |--------------------------------------------------------------------------
+        | Cek MIME
         */
 
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $finfo = finfo_open(
+            FILEINFO_MIME_TYPE
+        );
+
 
         if ($finfo) {
 
-            $mime = finfo_file(
+            $fotoDiriMime = finfo_file(
                 $finfo,
                 $fotoDiri['tmp_name']
             );
 
             finfo_close($finfo);
 
-            if (!in_array($mime, ALLOWED_MIME, true)) {
+
+            if (
+                !in_array(
+                    $fotoDiriMime,
+                    $allowedMime,
+                    true
+                )
+            ) {
 
                 $errors[] =
                     'Format foto diri tidak valid.';
@@ -160,7 +336,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /*
     |--------------------------------------------------------------------------
-    | PROSES UPLOAD
+    | PROSES SIMPAN FILE
     |--------------------------------------------------------------------------
     */
 
@@ -168,100 +344,170 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         /*
         |--------------------------------------------------------------------------
-        | UPLOAD DOKUMEN KTP
+        | ID USER
         |--------------------------------------------------------------------------
         */
 
-        $fileName = process_file_upload(
-            $_FILES['dokumen']
+        $userId = (int) (
+            $_SESSION['user_id'] ?? 0
         );
 
 
-        if (!$fileName) {
+        if ($userId <= 0) {
 
             $errors[] =
-                'Gagal menyimpan dokumen KTP / Surat Kehilangan.';
+                'User tidak valid. Silakan login kembali.';
+        }
 
-        } else {
 
-            /*
-            |--------------------------------------------------------------------------
-            | BUAT NAMA FILE FOTO DIRI
-            |--------------------------------------------------------------------------
-            */
+        /*
+        |--------------------------------------------------------------------------
+        | BUAT NAMA FILE UNIK
+        |--------------------------------------------------------------------------
+        */
 
-            $extension = strtolower(
-                pathinfo(
-                    $fotoDiri['name'],
-                    PATHINFO_EXTENSION
-                )
+        if (!$errors) {
+
+            $waktu = date('YmdHis');
+
+            $random = bin2hex(
+                random_bytes(6)
             );
 
 
-            $fotoDiriName =
-                'foto_diri_' .
-                $_SESSION['user_id'] .
+            /*
+            |--------------------------------------------------------------------------
+            | NAMA FILE KTP
+            |--------------------------------------------------------------------------
+            */
+
+            $dokumenName =
+                'ktp_' .
+                $userId .
                 '_' .
-                time() .
+                $waktu .
                 '_' .
-                bin2hex(random_bytes(4)) .
+                $random .
                 '.' .
-                $extension;
+                $dokumenExtension;
 
 
             /*
             |--------------------------------------------------------------------------
-            | PASTIKAN FOLDER UPLOAD ADA
+            | NAMA FILE FOTO DIRI
             |--------------------------------------------------------------------------
             */
 
-            if (!is_dir(UPLOAD_DIR)) {
+            $fotoDiriName =
+                'foto_diri_' .
+                $userId .
+                '_' .
+                $waktu .
+                '_' .
+                $random .
+                '.' .
+                $fotoDiriExtension;
 
-                @mkdir(
-                    UPLOAD_DIR,
-                    0777,
-                    true
-                );
-            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | PATH FISIK FILE
+            |--------------------------------------------------------------------------
+            */
+
+            $dokumenPath =
+                $uploadDir .
+                $dokumenName;
 
 
             $fotoDiriPath =
-                UPLOAD_DIR . $fotoDiriName;
+                $uploadDir .
+                $fotoDiriName;
 
 
             /*
             |--------------------------------------------------------------------------
-            | PINDAHKAN FOTO DIRI
+            | UPLOAD FOTO KTP
             |--------------------------------------------------------------------------
             */
 
-            if (
-                !move_uploaded_file(
-                    $fotoDiri['tmp_name'],
-                    $fotoDiriPath
-                )
-            ) {
-
-                /*
-                | Hapus dokumen KTP jika foto diri gagal
-                */
-
-                @unlink(
-                    UPLOAD_DIR . $fileName
+            $uploadDokumen =
+                move_uploaded_file(
+                    $dokumen['tmp_name'],
+                    $dokumenPath
                 );
 
+
+            if (!$uploadDokumen) {
+
                 $errors[] =
-                    'Gagal menyimpan foto diri. Silakan coba lagi.';
+                    'Foto KTP gagal disimpan ke folder uploads/images/.';
+            }
 
-            } else {
 
-                /*
-                |--------------------------------------------------------------------------
-                | SIMPAN DATA KE DATABASE
-                |--------------------------------------------------------------------------
-                */
+            /*
+            |--------------------------------------------------------------------------
+            | UPLOAD FOTO DIRI
+            |--------------------------------------------------------------------------
+            */
+
+            if (!$errors) {
+
+                $uploadFotoDiri =
+                    move_uploaded_file(
+                        $fotoDiri['tmp_name'],
+                        $fotoDiriPath
+                    );
+
+
+                if (!$uploadFotoDiri) {
+
+                    /*
+                    | Hapus KTP jika foto diri gagal
+                    */
+
+                    if (
+                        file_exists(
+                            $dokumenPath
+                        )
+                    ) {
+
+                        @unlink(
+                            $dokumenPath
+                        );
+                    }
+
+
+                    $errors[] =
+                        'Foto diri gagal disimpan ke folder uploads/images/.';
+                }
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | SIMPAN DATABASE
+            |--------------------------------------------------------------------------
+            */
+
+            if (!$errors) {
 
                 try {
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | STATUS AWAL
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $statusAwal = 'menunggu';
+
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | INSERT DATABASE
+                    |--------------------------------------------------------------------------
+                    */
 
                     $stmt = $pdo->prepare("
                         INSERT INTO pengajuan_ktp
@@ -279,18 +525,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             ?,
                             ?,
                             ?,
-                            'pending',
+                            ?,
                             ?
                         )
                     ");
 
 
+                    /*
+                    |--------------------------------------------------------------------------
+                    | NAMA FILE DATABASE
+                    |--------------------------------------------------------------------------
+                    |
+                    | PENTING:
+                    |
+                    | $dokumenName
+                    | harus sama dengan file fisik.
+                    |
+                    | $fotoDiriName
+                    | harus sama dengan file fisik.
+                    |
+                    */
+
                     $stmt->execute([
                         $nik,
                         $nama_pemohon,
-                        $fileName,
+                        $dokumenName,
                         $fotoDiriName,
-                        $_SESSION['user_id']
+                        $statusAwal,
+                        $userId
                     ]);
 
 
@@ -305,7 +567,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
                     /*
-                    | Reset form
+                    |--------------------------------------------------------------------------
+                    | RESET FORM
+                    |--------------------------------------------------------------------------
                     */
 
                     $old = [
@@ -317,17 +581,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     /*
                     |--------------------------------------------------------------------------
-                    | JIKA DATABASE GAGAL
+                    | HAPUS FILE JIKA DATABASE GAGAL
                     |--------------------------------------------------------------------------
                     */
 
-                    @unlink(
-                        UPLOAD_DIR . $fileName
-                    );
+                    if (
+                        file_exists(
+                            $dokumenPath
+                        )
+                    ) {
 
-                    @unlink(
-                        UPLOAD_DIR . $fotoDiriName
-                    );
+                        @unlink(
+                            $dokumenPath
+                        );
+                    }
+
+
+                    if (
+                        file_exists(
+                            $fotoDiriPath
+                        )
+                    ) {
+
+                        @unlink(
+                            $fotoDiriPath
+                        );
+                    }
 
 
                     $errors[] =
@@ -361,7 +640,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 
             <!-- =====================================================
-                 HEADER FORM
+                 HEADER
             ====================================================== -->
 
             <div class="d-flex align-items-center gap-3 mb-4">
@@ -405,7 +684,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 
             <!-- =====================================================
-                 SUCCESS MESSAGE
+                 SUCCESS
             ====================================================== -->
 
             <?php if ($success): ?>
@@ -424,12 +703,19 @@ require_once __DIR__ . '/../includes/header.php';
 
 
             <!-- =====================================================
-                 ERROR MESSAGE
+                 ERROR
             ====================================================== -->
 
             <?php if ($errors): ?>
 
                 <div class="alert alert-danger">
+
+                    <div class="fw-semibold mb-2">
+
+                        Pengajuan tidak dapat dikirim:
+
+                    </div>
+
 
                     <ul class="mb-0 ps-3">
 
@@ -466,6 +752,7 @@ require_once __DIR__ . '/../includes/header.php';
 
                     <label
                         class="form-label fw-semibold"
+                        for="nik"
                     >
 
                         NIK
@@ -478,9 +765,12 @@ require_once __DIR__ . '/../includes/header.php';
                     <input
                         type="text"
                         name="nik"
+                        id="nik"
                         class="form-control"
                         maxlength="16"
+                        minlength="16"
                         pattern="[0-9]{16}"
+                        inputmode="numeric"
                         placeholder="Masukkan 16 digit NIK"
                         required
                         value="<?= e($old['nik']) ?>"
@@ -488,8 +778,6 @@ require_once __DIR__ . '/../includes/header.php';
 
 
                     <div class="form-text">
-
-                        <i class="bi bi-info-circle me-1"></i>
 
                         NIK harus terdiri dari 16 digit angka.
 
@@ -499,13 +787,14 @@ require_once __DIR__ . '/../includes/header.php';
 
 
                 <!-- =================================================
-                     NAMA PEMOHON
+                     NAMA
                 ================================================== -->
 
                 <div class="mb-3">
 
                     <label
                         class="form-label fw-semibold"
+                        for="nama_pemohon"
                     >
 
                         Nama Pemohon
@@ -518,6 +807,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <input
                         type="text"
                         name="nama_pemohon"
+                        id="nama_pemohon"
                         class="form-control"
                         maxlength="30"
                         placeholder="Nama lengkap sesuai KTP"
@@ -529,13 +819,14 @@ require_once __DIR__ . '/../includes/header.php';
 
 
                 <!-- =================================================
-                     DOKUMEN KTP / SURAT KEHILANGAN
+                     FOTO KTP
                 ================================================== -->
 
                 <div class="mb-4">
 
                     <label
                         class="form-label fw-semibold"
+                        for="dokumen"
                     >
 
                         <i
@@ -554,25 +845,15 @@ require_once __DIR__ . '/../includes/header.php';
                         name="dokumen"
                         id="dokumen"
                         class="form-control"
-                        accept="
-                            .jpg,
-                            .jpeg,
-                            .png,
-                            image/jpeg,
-                            image/png
-                        "
+                        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                         required
                     >
 
 
                     <div class="form-text">
 
-                        <i
-                            class="bi bi-info-circle me-1"
-                        ></i>
-
-                        Upload foto KTP atau Surat Kehilangan.
-                        Format JPG/JPEG/PNG, maksimal 5 MB.
+                        Format JPG/JPEG/PNG,
+                        maksimal 5 MB.
 
                     </div>
 
@@ -587,6 +868,7 @@ require_once __DIR__ . '/../includes/header.php';
 
                     <label
                         class="form-label fw-semibold"
+                        for="foto_diri"
                     >
 
                         <i
@@ -605,87 +887,47 @@ require_once __DIR__ . '/../includes/header.php';
                         name="foto_diri"
                         id="foto_diri"
                         class="form-control"
-                        accept="
-                            .jpg,
-                            .jpeg,
-                            .png,
-                            image/jpeg,
-                            image/png
-                        "
+                        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                         required
                     >
 
 
-                    <!-- =================================================
-                         KETERANGAN FOTO DIRI
-                    ================================================== -->
+                    <div class="alert alert-info mt-3 mb-0">
 
-                    <div
-                        class="alert alert-info mt-3 mb-0"
-                    >
+                        <strong>
+                            Ketentuan Foto Diri
+                        </strong>
 
-                        <div
-                            class="d-flex gap-2"
-                        >
+                        <ul class="mb-0 mt-2">
 
-                            <div>
+                            <li>
+                                Wajah pemohon harus terlihat jelas.
+                            </li>
 
-                                <i
-                                    class="bi bi-info-circle-fill"
-                                ></i>
+                            <li>
+                                Pemohon wajib memegang KTP asli.
+                            </li>
 
-                            </div>
+                            <li>
+                                KTP harus terlihat jelas.
+                            </li>
 
+                            <li>
+                                Wajah dan KTP harus terlihat
+                                dalam satu foto.
+                            </li>
 
-                            <div>
+                            <li>
+                                Foto tidak boleh buram
+                                atau terlalu gelap.
+                            </li>
 
-                                <strong>
-                                    Ketentuan Foto Diri
-                                </strong>
+                            <li>
+                                Format JPG/JPEG/PNG,
+                                maksimal 5 MB.
+                            </li>
 
-
-                                <ul
-                                    class="mb-0 mt-2 ps-3"
-                                >
-
-                                    <li>
-                                        Foto harus menampilkan
-                                        wajah pemohon dengan jelas.
-                                    </li>
-
-                                    <li>
-                                        Pemohon wajib
-                                        <strong>
-                                            memegang KTP asli
-                                        </strong>
-                                        saat mengambil foto.
-                                    </li>
-
-                                    <li>
-                                        KTP harus terlihat jelas
-                                        dan tidak tertutup tangan.
-                                    </li>
-
-                                    <li>
-                                        Wajah dan KTP harus terlihat
-                                        dalam satu foto.
-                                    </li>
-
-                                    <li>
-                                        Foto tidak boleh buram,
-                                        terlalu gelap, atau terlalu jauh.
-                                    </li>
-
-                                    <li>
-                                        Format JPG/JPEG/PNG,
-                                        maksimal 5 MB.
-                                    </li>
-
-                                </ul>
-
-                            </div>
-
-                        </div>
+                        </ul>
 
                     </div>
 
@@ -708,8 +950,8 @@ require_once __DIR__ . '/../includes/header.php';
                                 class="card-body text-center"
                             >
 
-                                <small
-                                    class="text-muted d-block mb-2"
+                                <div
+                                    class="fw-semibold mb-3"
                                 >
 
                                     <i
@@ -718,7 +960,7 @@ require_once __DIR__ . '/../includes/header.php';
 
                                     Preview Foto Diri
 
-                                </small>
+                                </div>
 
 
                                 <img
@@ -728,32 +970,11 @@ require_once __DIR__ . '/../includes/header.php';
                                     style="
                                         max-width:220px;
                                         max-height:280px;
-                                        object-fit:cover;
+                                        object-fit:contain;
                                         border-radius:10px;
                                         border:1px solid #ddd;
-                                        box-shadow:
-                                            0 2px 8px
-                                            rgba(0,0,0,.08);
                                     "
                                 >
-
-
-                                <div class="mt-2">
-
-                                    <small
-                                        class="text-success"
-                                    >
-
-                                        <i
-                                            class="bi bi-check-circle-fill me-1"
-                                        ></i>
-
-                                        Pastikan wajah dan KTP
-                                        terlihat dengan jelas.
-
-                                    </small>
-
-                                </div>
 
                             </div>
 
@@ -765,7 +986,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 
                 <!-- =================================================
-                     BUTTON KIRIM
+                     BUTTON
                 ================================================== -->
 
                 <button
@@ -781,7 +1002,6 @@ require_once __DIR__ . '/../includes/header.php';
 
                 </button>
 
-
             </form>
 
         </div>
@@ -791,18 +1011,22 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 
-<!-- =============================================================
-     JAVASCRIPT PREVIEW FOTO DIRI
-============================================================== -->
-
 <script>
+
+/*
+|--------------------------------------------------------------------------
+| PREVIEW FOTO DIRI
+|--------------------------------------------------------------------------
+*/
 
 document.addEventListener(
     'DOMContentLoaded',
     function () {
 
         const fotoInput =
-            document.getElementById('foto_diri');
+            document.getElementById(
+                'foto_diri'
+            );
 
         const previewContainer =
             document.getElementById(
@@ -815,139 +1039,169 @@ document.addEventListener(
             );
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Pastikan element tersedia
-        |--------------------------------------------------------------------------
-        */
-
         if (
-            !fotoInput ||
-            !previewContainer ||
-            !previewFoto
+            fotoInput &&
+            previewContainer &&
+            previewFoto
         ) {
 
-            return;
+            fotoInput.addEventListener(
+                'change',
+                function () {
+
+                    const file =
+                        this.files[0];
+
+
+                    if (!file) {
+
+                        previewContainer.style.display =
+                            'none';
+
+                        previewFoto.src = '';
+
+                        return;
+                    }
+
+
+                    /*
+                    | Cek ukuran
+                    */
+
+                    if (
+                        file.size >
+                        5 * 1024 * 1024
+                    ) {
+
+                        alert(
+                            'Ukuran foto diri maksimal 5 MB.'
+                        );
+
+                        this.value = '';
+
+                        previewContainer.style.display =
+                            'none';
+
+                        previewFoto.src = '';
+
+                        return;
+                    }
+
+
+                    /*
+                    | Cek tipe
+                    */
+
+                    if (
+                        ![
+                            'image/jpeg',
+                            'image/png'
+                        ].includes(
+                            file.type
+                        )
+                    ) {
+
+                        alert(
+                            'Foto diri hanya boleh JPG, JPEG, atau PNG.'
+                        );
+
+                        this.value = '';
+
+                        previewContainer.style.display =
+                            'none';
+
+                        previewFoto.src = '';
+
+                        return;
+                    }
+
+
+                    /*
+                    | Preview
+                    */
+
+                    const reader =
+                        new FileReader();
+
+
+                    reader.onload =
+                        function (event) {
+
+                            previewFoto.src =
+                                event.target.result;
+
+                            previewContainer.style.display =
+                                'block';
+
+                        };
+
+
+                    reader.readAsDataURL(
+                        file
+                    );
+
+                }
+            );
+
         }
 
 
         /*
         |--------------------------------------------------------------------------
-        | Saat foto dipilih
+        | NIK HANYA ANGKA
         |--------------------------------------------------------------------------
         */
 
-        fotoInput.addEventListener(
-            'change',
-            function () {
-
-                const file =
-                    this.files[0];
+        const nik =
+            document.getElementById('nik');
 
 
-                /*
-                |--------------------------------------------------------------------------
-                | Tidak ada file
-                |--------------------------------------------------------------------------
-                */
+        if (nik) {
 
-                if (!file) {
+            nik.addEventListener(
+                'input',
+                function () {
 
-                    previewContainer.style.display =
-                        'none';
+                    this.value =
+                        this.value.replace(
+                            /[^0-9]/g,
+                            ''
+                        );
 
-                    previewFoto.src = '';
-
-                    return;
                 }
+            );
+
+        }
 
 
-                /*
-                |--------------------------------------------------------------------------
-                | Validasi ukuran maksimal 5 MB
-                |--------------------------------------------------------------------------
-                */
+        /*
+        |--------------------------------------------------------------------------
+        | NAMA
+        |--------------------------------------------------------------------------
+        */
 
-                const maxSize =
-                    5 * 1024 * 1024;
+        const nama =
+            document.getElementById(
+                'nama_pemohon'
+            );
 
 
-                if (file.size > maxSize) {
+        if (nama) {
 
-                    alert(
-                        'Ukuran foto diri maksimal 5 MB.'
-                    );
+            nama.addEventListener(
+                'input',
+                function () {
 
-                    this.value = '';
+                    this.value =
+                        this.value.replace(
+                            /[^a-zA-ZÀ-ÿ\s]/g,
+                            ''
+                        );
 
-                    previewContainer.style.display =
-                        'none';
-
-                    previewFoto.src = '';
-
-                    return;
                 }
+            );
 
-
-                /*
-                |--------------------------------------------------------------------------
-                | Validasi tipe file
-                |--------------------------------------------------------------------------
-                */
-
-                const allowedTypes = [
-                    'image/jpeg',
-                    'image/png'
-                ];
-
-
-                if (
-                    !allowedTypes.includes(
-                        file.type
-                    )
-                ) {
-
-                    alert(
-                        'Foto diri hanya boleh JPG, JPEG, atau PNG.'
-                    );
-
-                    this.value = '';
-
-                    previewContainer.style.display =
-                        'none';
-
-                    previewFoto.src = '';
-
-                    return;
-                }
-
-
-                /*
-                |--------------------------------------------------------------------------
-                | Tampilkan preview
-                |--------------------------------------------------------------------------
-                */
-
-                const reader =
-                    new FileReader();
-
-
-                reader.onload =
-                    function (event) {
-
-                        previewFoto.src =
-                            event.target.result;
-
-                        previewContainer.style.display =
-                            'block';
-
-                    };
-
-
-                reader.readAsDataURL(file);
-
-            }
-        );
+        }
 
     }
 );

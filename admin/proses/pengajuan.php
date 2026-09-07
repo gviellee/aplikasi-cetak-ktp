@@ -5,279 +5,100 @@ require_once __DIR__ . '/../../includes/functions.php';
 
 require_admin();
 
-$errors = [];
-$success = '';
-
-/*
-|--------------------------------------------------------------------------
-| AMBIL ID PENGAJUAN
-|--------------------------------------------------------------------------
-*/
-
-$id = (int) ($_GET['id'] ?? 0);
+$id = (int) ($_GET['id'] ?? $_POST['id'] ?? 0);
 
 if ($id <= 0) {
-    header('Location: ../pemohon.php');
-    exit;
+    die('ID pengajuan tidak valid.');
 }
 
+$success = '';
+$error = '';
 
 /*
 |--------------------------------------------------------------------------
-| CEK KOLOM ALASAN PENOLAKAN
-|--------------------------------------------------------------------------
-*/
-
-$hasAlasanPenolakan = false;
-
-try {
-
-    $stmt = $pdo->query("
-        SHOW COLUMNS
-        FROM pengajuan_ktp
-        LIKE 'alasan_penolakan'
-    ");
-
-    $hasAlasanPenolakan =
-        $stmt->fetch() !== false;
-
-} catch (PDOException $e) {
-
-    $hasAlasanPenolakan = false;
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| FUNGSI AMBIL DATA PENGAJUAN
-|--------------------------------------------------------------------------
-*/
-
-function getPengajuan($pdo, $id)
-{
-    $stmt = $pdo->prepare("
-        SELECT
-            p.*,
-            u.username
-        FROM pengajuan_ktp p
-
-        LEFT JOIN users u
-            ON u.id = p.user_id
-
-        WHERE p.id = ?
-
-        LIMIT 1
-    ");
-
-    $stmt->execute([$id]);
-
-    return $stmt->fetch();
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| AMBIL DATA
-|--------------------------------------------------------------------------
-*/
-
-try {
-
-    $pengajuan = getPengajuan(
-        $pdo,
-        $id
-    );
-
-} catch (PDOException $e) {
-
-    die(
-        'Gagal mengambil data pengajuan: ' .
-        htmlspecialchars(
-            $e->getMessage()
-        )
-    );
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| CEK DATA
-|--------------------------------------------------------------------------
-*/
-
-if (!$pengajuan) {
-
-    die(
-        'Pengajuan dengan ID ' .
-        $id .
-        ' tidak ditemukan.'
-    );
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| PROSES FORM
+| PROSES UBAH STATUS
 |--------------------------------------------------------------------------
 */
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    $status = trim(
-        $_POST['status'] ?? ''
-    );
+    $action = $_POST['action'] ?? '';
 
-    $alasanPenolakan = trim(
-        $_POST['alasan_penolakan'] ?? ''
-    );
+    if ($action === 'ubah_status') {
 
+        $status = strtolower(trim($_POST['status'] ?? ''));
+        $alasan_penolakan = trim($_POST['alasan_penolakan'] ?? '');
 
-    /*
-    |--------------------------------------------------------------------------
-    | STATUS YANG DIPERBOLEHKAN
-    |--------------------------------------------------------------------------
-    */
+        /*
+         * STATUS YANG DIPERBOLEHKAN
+         * Diproses sudah dihapus.
+         */
 
-    $allowedStatus = [
-        'pending',
-        'diproses',
-        'selesai',
-        'ditolak'
-    ];
+        $statusValid = [
+            'menunggu',
+            'selesai',
+            'ditolak'
+        ];
 
+        /*
+         * Validasi status
+         */
 
-    /*
-    |--------------------------------------------------------------------------
-    | VALIDASI STATUS
-    |--------------------------------------------------------------------------
-    */
+        if (!in_array($status, $statusValid, true)) {
 
-    if (
-        !in_array(
-            $status,
-            $allowedStatus,
-            true
-        )
-    ) {
+            $error = 'Status pengajuan tidak valid.';
 
-        $errors[] =
-            'Silakan pilih status pengajuan.';
-    }
+        /*
+         * Jika ditolak wajib memberikan alasan
+         */
 
+        } elseif (
+            $status === 'ditolak' &&
+            $alasan_penolakan === ''
+        ) {
 
-    /*
-    |--------------------------------------------------------------------------
-    | VALIDASI ALASAN DITOLAK
-    |--------------------------------------------------------------------------
-    */
+            $error =
+                'Alasan penolakan wajib diisi.';
 
-    if (
-        $status === 'ditolak' &&
-        $alasanPenolakan === ''
-    ) {
-
-        $errors[] =
-            'Alasan penolakan wajib diisi.';
-    }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | SIMPAN KE DATABASE
-    |--------------------------------------------------------------------------
-    */
-
-    if (!$errors) {
-
-        try {
+        } else {
 
             /*
-            |--------------------------------------------------------------------------
-            | JIKA KOLOM ALASAN TERSEDIA
-            |--------------------------------------------------------------------------
-            */
+             * Jika status bukan ditolak,
+             * alasan penolakan dikosongkan.
+             */
 
-            if ($hasAlasanPenolakan) {
+            if ($status !== 'ditolak') {
 
-                /*
-                | Jika status bukan ditolak,
-                | hapus alasan sebelumnya.
-                */
-
-                if ($status !== 'ditolak') {
-
-                    $alasanPenolakan = null;
-                }
-
-
-                $stmt = $pdo->prepare("
-                    UPDATE pengajuan_ktp
-
-                    SET
-                        status = ?,
-                        alasan_penolakan = ?
-
-                    WHERE id = ?
-                ");
-
-
-                $stmt->execute([
-                    $status,
-                    $alasanPenolakan,
-                    $id
-                ]);
-
-            } else {
-
-                /*
-                |--------------------------------------------------------------------------
-                | JIKA KOLOM BELUM ADA
-                |--------------------------------------------------------------------------
-                */
-
-                $stmt = $pdo->prepare("
-                    UPDATE pengajuan_ktp
-
-                    SET status = ?
-
-                    WHERE id = ?
-                ");
-
-
-                $stmt->execute([
-                    $status,
-                    $id
-                ]);
+                $alasan_penolakan = null;
             }
 
 
-            /*
-            |--------------------------------------------------------------------------
-            | PESAN BERHASIL
-            |--------------------------------------------------------------------------
-            */
+            try {
 
-            $success =
-                'Status pengajuan berhasil diperbarui.';
+                $stmt = $pdo->prepare("
+                    UPDATE pengajuan_ktp
+                    SET
+                        status = ?,
+                        alasan_penolakan = ?
+                    WHERE id = ?
+                ");
 
-
-            /*
-            |--------------------------------------------------------------------------
-            | AMBIL DATA TERBARU
-            |--------------------------------------------------------------------------
-            */
-
-            $pengajuan =
-                getPengajuan(
-                    $pdo,
+                $stmt->execute([
+                    $status,
+                    $alasan_penolakan,
                     $id
-                );
+                ]);
 
-        } catch (PDOException $e) {
 
-            $errors[] =
-                'Gagal menyimpan perubahan: ' .
-                $e->getMessage();
+                $success =
+                    'Status pengajuan berhasil diperbarui.';
+
+
+            } catch (PDOException $e) {
+
+                $error =
+                    'Gagal memperbarui status pengajuan.';
+            }
         }
     }
 }
@@ -285,506 +106,1195 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 /*
 |--------------------------------------------------------------------------
-| STATUS SEKARANG
+| AMBIL DATA PENGAJUAN
 |--------------------------------------------------------------------------
 */
 
-$currentStatus = strtolower(
+$stmt = $pdo->prepare("
+    SELECT
+        id,
+        user_id,
+        nik,
+        nama_pemohon,
+        gambar_path,
+        foto_diri_path,
+        status,
+        alasan_penolakan,
+        created_at
+    FROM pengajuan_ktp
+    WHERE id = ?
+    LIMIT 1
+");
+
+$stmt->execute([$id]);
+
+$pengajuan =
+    $stmt->fetch(PDO::FETCH_ASSOC);
+
+
+if (!$pengajuan) {
+
+    die(
+        'Data pengajuan tidak ditemukan.'
+    );
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| DATA TAMBAHAN
+|--------------------------------------------------------------------------
+*/
+
+$statusSekarang = strtolower(
     trim(
-        $pengajuan['status'] ?? ''
+        $pengajuan['status'] ?? 'menunggu'
     )
 );
 
 
 /*
-|--------------------------------------------------------------------------
-| ALASAN SEKARANG
-|--------------------------------------------------------------------------
-*/
+ * Jika status lama masih "diproses",
+ * tampilkan sebagai menunggu.
+ */
 
-$currentAlasan = '';
+if (
+    $statusSekarang === '' ||
+    $statusSekarang === 'diproses'
+) {
 
-if ($hasAlasanPenolakan) {
-
-    $currentAlasan =
-        $pengajuan[
-            'alasan_penolakan'
-        ] ?? '';
+    $statusSekarang = 'menunggu';
 }
 
 
 /*
 |--------------------------------------------------------------------------
-| PAGE TITLE
+| URL LAMPIRAN
 |--------------------------------------------------------------------------
 */
 
-$pageTitle =
-    'Proses Pengajuan KTP';
+$gambarUrl = '';
+
+if (!empty($pengajuan['gambar_path'])) {
+
+    $gambarUrl =
+        '/aplikasi-cetak-ktp/uploads/images/' .
+        rawurlencode(
+            basename(
+                $pengajuan['gambar_path']
+            )
+        );
+}
 
 
-require_once
-    __DIR__ . '/../../includes/header.php';
+$fotoUrl = '';
+
+if (!empty($pengajuan['foto_diri_path'])) {
+
+    $fotoUrl =
+        '/aplikasi-cetak-ktp/uploads/images/' .
+        rawurlencode(
+            basename(
+                $pengajuan['foto_diri_path']
+            )
+        );
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| CLASS STATUS
+|--------------------------------------------------------------------------
+*/
+
+$statusClass = 'status-menunggu';
+
+switch ($statusSekarang) {
+
+    case 'selesai':
+
+        $statusClass =
+            'status-selesai';
+
+        break;
+
+    case 'ditolak':
+
+        $statusClass =
+            'status-ditolak';
+
+        break;
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| FORMAT TANGGAL
+|--------------------------------------------------------------------------
+*/
+
+$tanggalPengajuan = '-';
+
+if (!empty($pengajuan['created_at'])) {
+
+    $timestamp =
+        strtotime(
+            $pengajuan['created_at']
+        );
+
+    if ($timestamp !== false) {
+
+        $tanggalPengajuan =
+            date(
+                'd/m/Y H:i',
+                $timestamp
+            );
+    }
+}
 
 ?>
 
+<!DOCTYPE html>
+<html lang="id">
 
-<!-- =========================================================
-     HEADER
-========================================================= -->
+<head>
 
-<div
-    class="
-        d-flex
-        justify-content-between
-        align-items-center
-        mb-4
-    "
+<meta charset="UTF-8">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
 >
 
-    <div>
-
-        <h5 class="fw-bold mb-1">
-
-            <i
-                class="
-                    bi
-                    bi-pencil-square
-                    me-2
-                "
-                style="color:#f59e0b;"
-            ></i>
-
-            Proses Pengajuan KTP
-
-        </h5>
-
-        <p
-            class="
-                text-muted
-                small
-                mb-0
-            "
-        >
-
-            Kelola status pengajuan pemohon.
-
-        </p>
-
-    </div>
+<title>
+    Proses Pengajuan KTP
+</title>
 
 
-    <a
-        href="../pemohon.php"
-        class="
-            btn
-            btn-outline-secondary
-        "
-    >
+<!-- FONT -->
 
-        <i
-            class="
-                bi
-                bi-arrow-left
-                me-1
-            "
-        ></i>
-
-        Kembali
-
-    </a>
-
-</div>
+<link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+>
 
 
-<!-- =========================================================
-     PESAN SUKSES
-========================================================= -->
+<!-- ICON -->
 
-<?php if ($success): ?>
-
-    <div
-        class="
-            alert
-            alert-success
-            alert-dismissible
-            fade
-            show
-        "
-    >
-
-        <i
-            class="
-                bi
-                bi-check-circle-fill
-                me-2
-            "
-        ></i>
-
-        <?= e($success) ?>
-
-        <button
-            type="button"
-            class="btn-close"
-            data-bs-dismiss="alert"
-        ></button>
-
-    </div>
-
-<?php endif; ?>
+<link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+>
 
 
-<!-- =========================================================
-     PESAN ERROR
-========================================================= -->
+<style>
 
-<?php if ($errors): ?>
+/* ============================================================
+   RESET
+============================================================ */
 
-    <div class="alert alert-danger">
-
-        <div class="fw-bold mb-2">
-
-            <i
-                class="
-                    bi
-                    bi-exclamation-triangle-fill
-                    me-1
-                "
-            ></i>
-
-            Terjadi Kesalahan
-
-        </div>
-
-        <ul class="mb-0">
-
-            <?php foreach (
-                $errors
-                as $error
-            ): ?>
-
-                <li>
-                    <?= e($error) ?>
-                </li>
-
-            <?php endforeach; ?>
-
-        </ul>
-
-    </div>
-
-<?php endif; ?>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
 
 
-<!-- =========================================================
-     DETAIL PENGAJUAN
-========================================================= -->
+/* ============================================================
+   BODY
+============================================================ */
 
-<div class="card shadow-sm mb-4">
+body {
 
-    <div class="card-body">
+    font-family:
+        'Plus Jakarta Sans',
+        sans-serif;
 
-        <div
-            class="
-                d-flex
-                justify-content-between
-                align-items-center
-                mb-4
-            "
-        >
+    background: #f6f5fc;
 
-            <h6 class="fw-bold mb-0">
+    color: #1f1b3d;
 
-                <i
-                    class="
-                        bi
-                        bi-person-vcard-fill
-                        me-1
-                    "
-                    style="color:#7c3aed;"
-                ></i>
+    font-size: 15px;
 
-                Detail Pengajuan
-
-            </h6>
+    min-height: 100vh;
+}
 
 
-            <span
-                class="
-                    badge
-                    bg-secondary
-                "
+/* ============================================================
+   CONTAINER
+============================================================ */
+
+.page-container {
+
+    width: 100%;
+
+    max-width: 1180px;
+
+    margin: 0 auto;
+
+    padding:
+        30px
+        28px
+        50px;
+}
+
+
+/* ============================================================
+   HEADER
+============================================================ */
+
+.page-header {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 20px;
+
+    margin-bottom: 24px;
+}
+
+
+.header-left {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 14px;
+}
+
+
+.back-button {
+
+    width: 44px;
+
+    height: 44px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border-radius: 12px;
+
+    text-decoration: none;
+
+    color: #5b4bb7;
+
+    background: #ffffff;
+
+    border: 1px solid #e8e6f2;
+
+    box-shadow:
+        0 3px 12px rgba(31, 27, 61, 0.05);
+
+    transition: .2s;
+}
+
+
+.back-button:hover {
+
+    background: #f1efff;
+
+    transform: translateX(-2px);
+}
+
+
+.back-button i {
+
+    font-size: 20px;
+}
+
+
+.page-title {
+
+    font-size: 24px;
+
+    font-weight: 800;
+
+    color: #171334;
+
+    line-height: 1.2;
+}
+
+
+.page-subtitle {
+
+    margin-top: 5px;
+
+    font-size: 14px;
+
+    color: #6b7280;
+}
+
+
+/* ============================================================
+   ALERT
+============================================================ */
+
+.alert {
+
+    display: flex;
+
+    align-items: flex-start;
+
+    gap: 12px;
+
+    padding: 14px 16px;
+
+    border-radius: 12px;
+
+    margin-bottom: 18px;
+
+    font-size: 14px;
+
+    font-weight: 600;
+}
+
+
+.alert i {
+
+    font-size: 18px;
+
+    flex-shrink: 0;
+}
+
+
+.alert-success {
+
+    background: #ecfdf5;
+
+    color: #047857;
+
+    border: 1px solid #a7f3d0;
+}
+
+
+.alert-error {
+
+    background: #fef2f2;
+
+    color: #b91c1c;
+
+    border: 1px solid #fecaca;
+}
+
+
+/* ============================================================
+   MAIN GRID
+============================================================ */
+
+.content-grid {
+
+    display: grid;
+
+    grid-template-columns:
+        minmax(0, 1.15fr)
+        minmax(340px, .85fr);
+
+    gap: 20px;
+
+    align-items: start;
+}
+
+
+/* ============================================================
+   CARD
+============================================================ */
+
+.card {
+
+    background: #ffffff;
+
+    border: 1px solid #e8e6f2;
+
+    border-radius: 16px;
+
+    box-shadow:
+        0 8px 25px rgba(31, 27, 61, 0.06);
+
+    overflow: hidden;
+}
+
+
+.card-header {
+
+    padding: 20px 22px;
+
+    border-bottom: 1px solid #eeeeF5;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+}
+
+
+.card-header-icon {
+
+    width: 40px;
+
+    height: 40px;
+
+    border-radius: 11px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    background: #eeeafd;
+
+    color: #7c3aed;
+
+    flex-shrink: 0;
+}
+
+
+.card-header-icon i {
+
+    font-size: 19px;
+}
+
+
+.card-title {
+
+    font-size: 19px;
+
+    font-weight: 800;
+
+    color: #1f1b3d;
+}
+
+
+.card-subtitle {
+
+    font-size: 13px;
+
+    color: #8a879a;
+
+    margin-top: 3px;
+}
+
+
+.card-body {
+
+    padding: 20px 22px;
+}
+
+
+/* ============================================================
+   DATA PEMOHON
+============================================================ */
+
+.data-grid {
+
+    display: grid;
+
+    grid-template-columns: 1fr;
+
+    gap: 0;
+}
+
+
+.data-item {
+
+    padding: 17px 0;
+
+    border-bottom: 1px solid #eeeeF5;
+}
+
+
+.data-item:first-child {
+
+    padding-top: 2px;
+}
+
+
+.data-item:last-child {
+
+    border-bottom: none;
+
+    padding-bottom: 2px;
+}
+
+
+.data-label {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 8px;
+
+    font-size: 14px;
+
+    font-weight: 700;
+
+    color: #6b7280;
+
+    margin-bottom: 7px;
+}
+
+
+.data-label i {
+
+    color: #8b5cf6;
+
+    font-size: 16px;
+}
+
+
+.data-value {
+
+    font-size: 17px;
+
+    font-weight: 700;
+
+    color: #1f1b3d;
+
+    line-height: 1.5;
+
+    word-break: break-word;
+}
+
+
+/* ============================================================
+   STATUS BADGE
+============================================================ */
+
+.status-badge {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 7px;
+
+    padding: 8px 13px;
+
+    border-radius: 999px;
+
+    font-size: 14px;
+
+    font-weight: 700;
+
+    text-transform: capitalize;
+}
+
+
+.status-badge i {
+
+    font-size: 9px;
+}
+
+
+.status-menunggu {
+
+    color: #b45309;
+
+    background: #fff7ed;
+}
+
+
+.status-selesai {
+
+    color: #047857;
+
+    background: #ecfdf5;
+}
+
+
+.status-ditolak {
+
+    color: #b91c1c;
+
+    background: #fef2f2;
+}
+
+
+/* ============================================================
+   LAMPIRAN
+============================================================ */
+
+.attachment-list {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 12px;
+}
+
+
+.attachment-item {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 15px;
+
+    padding: 15px 16px;
+
+    border: 1px solid #e8e6f2;
+
+    border-radius: 12px;
+
+    background: #faf9fe;
+}
+
+
+.attachment-info {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+    min-width: 0;
+}
+
+
+.attachment-icon {
+
+    width: 42px;
+
+    height: 42px;
+
+    flex-shrink: 0;
+
+    border-radius: 10px;
+
+    background: #eeeafd;
+
+    color: #7c3aed;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+}
+
+
+.attachment-icon i {
+
+    font-size: 19px;
+}
+
+
+.attachment-name {
+
+    font-size: 15px;
+
+    font-weight: 700;
+
+    color: #302b50;
+
+    line-height: 1.4;
+}
+
+
+.attachment-desc {
+
+    font-size: 12px;
+
+    color: #8a879a;
+
+    margin-top: 3px;
+}
+
+
+.attachment-btn {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 7px;
+
+    padding: 9px 13px;
+
+    border-radius: 9px;
+
+    background: #7c3aed;
+
+    color: #ffffff;
+
+    text-decoration: none;
+
+    font-size: 14px;
+
+    font-weight: 700;
+
+    white-space: nowrap;
+
+    transition: .2s;
+}
+
+
+.attachment-btn:hover {
+
+    background: #6d28d9;
+
+    transform: translateY(-1px);
+}
+
+
+.attachment-empty {
+
+    padding: 15px;
+
+    border-radius: 11px;
+
+    background: #f9fafb;
+
+    border: 1px dashed #d9d6e7;
+
+    color: #8a879a;
+
+    text-align: center;
+
+    font-size: 14px;
+}
+
+
+/* ============================================================
+   FORM
+============================================================ */
+
+.form-group {
+
+    margin-bottom: 20px;
+}
+
+
+.form-label {
+
+    display: block;
+
+    font-size: 15px;
+
+    font-weight: 700;
+
+    color: #302b50;
+
+    margin-bottom: 8px;
+}
+
+
+.form-select,
+.form-control {
+
+    width: 100%;
+
+    border: 1px solid #dcd9e9;
+
+    border-radius: 11px;
+
+    background: #ffffff;
+
+    color: #25203f;
+
+    font-family: inherit;
+
+    font-size: 16px;
+
+    padding: 13px 14px;
+
+    outline: none;
+
+    transition: .2s;
+}
+
+
+.form-select:focus,
+.form-control:focus {
+
+    border-color: #8b5cf6;
+
+    box-shadow:
+        0 0 0 3px rgba(139, 92, 246, .12);
+}
+
+
+.form-control {
+
+    min-height: 125px;
+
+    resize: vertical;
+
+    line-height: 1.6;
+}
+
+
+/* ============================================================
+   ALASAN PENOLAKAN
+============================================================ */
+
+.reason-box {
+
+    display: none;
+
+    margin-top: -3px;
+
+    margin-bottom: 20px;
+
+    padding: 15px;
+
+    border-radius: 12px;
+
+    background: #fff7f7;
+
+    border: 1px solid #fecaca;
+}
+
+
+.reason-box.show {
+
+    display: block;
+}
+
+
+.reason-title {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 8px;
+
+    font-size: 14px;
+
+    font-weight: 700;
+
+    color: #b91c1c;
+
+    margin-bottom: 9px;
+}
+
+
+.reason-title i {
+
+    font-size: 17px;
+}
+
+
+.reason-help {
+
+    font-size: 12px;
+
+    color: #8a5c5c;
+
+    line-height: 1.5;
+
+    margin-top: 7px;
+}
+
+
+/* ============================================================
+   TOMBOL
+============================================================ */
+
+.action-buttons {
+
+    display: grid;
+
+    grid-template-columns: 1fr;
+
+    gap: 10px;
+
+    margin-top: 5px;
+}
+
+
+.btn {
+
+    width: 100%;
+
+    border: none;
+
+    border-radius: 11px;
+
+    padding: 13px 18px;
+
+    font-family: inherit;
+
+    font-size: 15px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+    text-decoration: none;
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 8px;
+
+    transition: .2s;
+}
+
+
+.btn-primary {
+
+    color: #ffffff;
+
+    background:
+        linear-gradient(
+            135deg,
+            #8b5cf6,
+            #6d28d9
+        );
+
+    box-shadow:
+        0 5px 14px rgba(124, 58, 237, .22);
+}
+
+
+.btn-primary:hover {
+
+    transform: translateY(-1px);
+
+    box-shadow:
+        0 7px 17px rgba(124, 58, 237, .28);
+}
+
+
+.btn-secondary {
+
+    color: #5b5573;
+
+    background: #f5f3fa;
+
+    border: 1px solid #e4e1ee;
+}
+
+
+.btn-secondary:hover {
+
+    background: #ece9f7;
+}
+
+
+/* ============================================================
+   INFORMASI PENOLAKAN
+============================================================ */
+
+.rejection-card {
+
+    margin-top: 20px;
+
+    border: 1px solid #fecaca;
+
+    background: #fffafa;
+
+    border-radius: 14px;
+
+    overflow: hidden;
+}
+
+
+.rejection-header {
+
+    padding: 14px 16px;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 9px;
+
+    color: #b91c1c;
+
+    font-size: 14px;
+
+    font-weight: 800;
+
+    border-bottom: 1px solid #fee2e2;
+}
+
+
+.rejection-body {
+
+    padding: 16px;
+
+    color: #6b3b3b;
+
+    font-size: 15px;
+
+    line-height: 1.7;
+
+    white-space: pre-line;
+}
+
+
+/* ============================================================
+   INFO STATUS
+============================================================ */
+
+.current-status {
+
+    padding: 14px 15px;
+
+    background: #f8f7fc;
+
+    border-radius: 11px;
+
+    margin-bottom: 20px;
+
+    border: 1px solid #ebe9f3;
+}
+
+
+.current-status-label {
+
+    font-size: 13px;
+
+    color: #7c788d;
+
+    font-weight: 600;
+
+    margin-bottom: 8px;
+}
+
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+
+@media (max-width: 900px) {
+
+    .content-grid {
+
+        grid-template-columns: 1fr;
+    }
+
+}
+
+
+@media (max-width: 600px) {
+
+    .page-container {
+
+        padding:
+            20px
+            15px
+            35px;
+    }
+
+
+    .page-header {
+
+        align-items: flex-start;
+    }
+
+
+    .page-title {
+
+        font-size: 21px;
+    }
+
+
+    .page-subtitle {
+
+        font-size: 13px;
+    }
+
+
+    .card-header {
+
+        padding: 17px;
+    }
+
+
+    .card-body {
+
+        padding: 17px;
+    }
+
+
+    .card-title {
+
+        font-size: 17px;
+    }
+
+
+    .data-value {
+
+        font-size: 16px;
+    }
+
+
+    .attachment-item {
+
+        align-items: flex-start;
+
+        flex-direction: column;
+    }
+
+
+    .attachment-btn {
+
+        width: 100%;
+
+        justify-content: center;
+    }
+
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<div class="page-container">
+
+
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
+
+    <div class="page-header">
+
+        <div class="header-left">
+
+            <a
+                href="../dashboard.php"
+                class="back-button"
+                title="Kembali"
             >
 
-                ID #<?= (int) $pengajuan['id'] ?>
+                <i class="bi bi-arrow-left"></i>
 
-            </span>
+            </a>
 
-        </div>
 
+            <div>
 
-        <div class="row g-4">
+                <h1 class="page-title">
+                    Proses Pengajuan KTP
+                </h1>
 
-
-            <!-- USERNAME -->
-
-            <div class="col-md-6">
-
-                <label
-                    class="
-                        form-label
-                        text-muted
-                        small
-                    "
-                >
-
-                    Username
-
-                </label>
-
-                <div class="fw-semibold">
-
-                    <?= e(
-                        $pengajuan['username']
-                        ?? '-'
-                    ) ?>
-
-                </div>
-
-            </div>
-
-
-            <!-- NIK -->
-
-            <div class="col-md-6">
-
-                <label
-                    class="
-                        form-label
-                        text-muted
-                        small
-                    "
-                >
-
-                    NIK
-
-                </label>
-
-                <div class="fw-semibold">
-
-                    <?= e(
-                        $pengajuan['nik']
-                        ?? '-'
-                    ) ?>
-
-                </div>
-
-            </div>
-
-
-            <!-- NAMA -->
-
-            <div class="col-md-6">
-
-                <label
-                    class="
-                        form-label
-                        text-muted
-                        small
-                    "
-                >
-
-                    Nama Pemohon
-
-                </label>
-
-                <div class="fw-semibold">
-
-                    <?= e(
-                        $pengajuan['nama_pemohon']
-                        ?? '-'
-                    ) ?>
-
-                </div>
-
-            </div>
-
-
-            <!-- TANGGAL -->
-
-            <div class="col-md-6">
-
-                <label
-                    class="
-                        form-label
-                        text-muted
-                        small
-                    "
-                >
-
-                    Tanggal Pengajuan
-
-                </label>
-
-                <div class="fw-semibold">
-
-                    <?php if (
-                        !empty(
-                            $pengajuan['created_at']
-                        )
-                    ): ?>
-
-                        <?= e(
-                            date(
-                                'd M Y H:i',
-                                strtotime(
-                                    $pengajuan['created_at']
-                                )
-                            )
-                        ) ?>
-
-                    <?php else: ?>
-
-                        -
-
-                    <?php endif; ?>
-
-                </div>
-
-            </div>
-
-
-            <!-- STATUS SEKARANG -->
-
-            <div class="col-12">
-
-                <label
-                    class="
-                        form-label
-                        text-muted
-                        small
-                    "
-                >
-
-                    Status Saat Ini
-
-                </label>
-
-                <div>
-
-                    <?php if (
-                        $currentStatus === 'pending' ||
-                        $currentStatus === 'menunggu'
-                    ): ?>
-
-                        <span
-                            class="
-                                badge
-                                bg-warning
-                                text-dark
-                            "
-                        >
-
-                            <i
-                                class="
-                                    bi
-                                    bi-hourglass-split
-                                    me-1
-                                "
-                            ></i>
-
-                            Menunggu
-
-                        </span>
-
-
-                    <?php elseif (
-                        $currentStatus === 'diproses'
-                    ): ?>
-
-                        <span
-                            class="
-                                badge
-                                bg-primary
-                            "
-                        >
-
-                            <i
-                                class="
-                                    bi
-                                    bi-arrow-repeat
-                                    me-1
-                                "
-                            ></i>
-
-                            Diproses
-
-                        </span>
-
-
-                    <?php elseif (
-                        $currentStatus === 'selesai'
-                    ): ?>
-
-                        <span
-                            class="
-                                badge
-                                bg-success
-                            "
-                        >
-
-                            <i
-                                class="
-                                    bi
-                                    bi-check-circle-fill
-                                    me-1
-                                "
-                            ></i>
-
-                            Selesai
-
-                        </span>
-
-
-                    <?php elseif (
-                        $currentStatus === 'ditolak'
-                    ): ?>
-
-                        <span
-                            class="
-                                badge
-                                bg-danger
-                            "
-                        >
-
-                            <i
-                                class="
-                                    bi
-                                    bi-x-circle-fill
-                                    me-1
-                                "
-                            ></i>
-
-                            Ditolak
-
-                        </span>
-
-
-                    <?php else: ?>
-
-                        <span
-                            class="
-                                badge
-                                bg-secondary
-                            "
-                        >
-
-                            Belum Ada Status
-
-                        </span>
-
-                    <?php endif; ?>
-
+                <div class="page-subtitle">
+                    Periksa data pemohon dan perbarui status pengajuan.
                 </div>
 
             </div>
@@ -793,355 +1303,736 @@ require_once
 
     </div>
 
-</div>
 
+    <!-- =====================================================
+         ALERT SUCCESS
+    ====================================================== -->
 
-<!-- =========================================================
-     FORM UBAH STATUS
-========================================================= -->
+    <?php if ($success): ?>
 
-<div class="card shadow-sm">
+        <div class="alert alert-success">
 
-    <div class="card-body">
+            <i class="bi bi-check-circle-fill"></i>
 
-        <h6 class="fw-bold mb-4">
+            <div>
 
-            <i
-                class="
-                    bi
-                    bi-arrow-repeat
-                    me-1
-                "
-                style="color:#7c3aed;"
-            ></i>
-
-            Ubah Status Pengajuan
-
-        </h6>
-
-
-        <form
-            method="POST"
-            action=""
-            id="formStatus"
-        >
-
-
-            <!-- =================================================
-                 STATUS
-            ================================================== -->
-
-            <div class="mb-4">
-
-                <label
-                    for="status"
-                    class="
-                        form-label
-                        fw-semibold
-                    "
-                >
-
-                    Status Pengajuan
-
-                    <span class="text-danger">
-                        *
-                    </span>
-
-                </label>
-
-
-                <select
-                    name="status"
-                    id="status"
-                    class="form-select"
-                    required
-                >
-
-                    <option value="">
-                        -- Pilih Status --
-                    </option>
-
-
-                    <option
-                        value="pending"
-                        <?= (
-                            $currentStatus === 'pending' ||
-                            $currentStatus === 'menunggu'
-                        )
-                            ? 'selected'
-                            : ''
-                        ?>
-                    >
-
-                        Menunggu
-
-                    </option>
-
-
-                    <option
-                        value="diproses"
-                        <?= (
-                            $currentStatus === 'diproses'
-                        )
-                            ? 'selected'
-                            : ''
-                        ?>
-                    >
-
-                        Diproses
-
-                    </option>
-
-
-                    <option
-                        value="selesai"
-                        <?= (
-                            $currentStatus === 'selesai'
-                        )
-                            ? 'selected'
-                            : ''
-                        ?>
-                    >
-
-                        Selesai
-
-                    </option>
-
-
-                    <option
-                        value="ditolak"
-                        <?= (
-                            $currentStatus === 'ditolak'
-                        )
-                            ? 'selected'
-                            : ''
-                        ?>
-                    >
-
-                        Ditolak
-
-                    </option>
-
-                </select>
+                <?= htmlspecialchars($success) ?>
 
             </div>
 
+        </div>
 
-            <!-- =================================================
-                 ALASAN PENOLAKAN
-            ================================================== -->
-
-            <div
-                id="alasanBox"
-                class="mb-4"
-                style="
-                    display:
-                    <?= (
-                        $currentStatus === 'ditolak'
-                    )
-                        ? 'block'
-                        : 'none'
-                    ?>;
-                "
-            >
-
-                <label
-                    for="alasan_penolakan"
-                    class="
-                        form-label
-                        fw-semibold
-                    "
-                >
-
-                    Alasan Penolakan
-
-                    <span class="text-danger">
-                        *
-                    </span>
-
-                </label>
+    <?php endif; ?>
 
 
-                <!--
-                | ADMIN MENGETIK ALASAN SENDIRI
-                -->
+    <!-- =====================================================
+         ALERT ERROR
+    ====================================================== -->
 
-                <textarea
-                    name="alasan_penolakan"
-                    id="alasan_penolakan"
-                    class="form-control"
-                    rows="5"
-                    placeholder="Tuliskan alasan penolakan di sini..."
-                ><?= e($currentAlasan) ?></textarea>
+    <?php if ($error): ?>
 
+        <div class="alert alert-error">
 
-                <div
-                    class="
-                        form-text
-                    "
-                >
+            <i class="bi bi-exclamation-circle-fill"></i>
 
-                    Contoh:
-                    Dokumen KTP yang diunggah tidak jelas.
-                    Silakan unggah ulang dokumen dengan kualitas
-                    yang lebih jelas.
+            <div>
 
-                </div>
+                <?= htmlspecialchars($error) ?>
+
+            </div>
+
+        </div>
+
+    <?php endif; ?>
 
 
-                <?php if (
-                    !$hasAlasanPenolakan
-                ): ?>
+    <!-- =====================================================
+         CONTENT
+    ====================================================== -->
 
-                    <div
-                        class="
-                            alert
-                            alert-warning
-                            mt-3
-                            mb-0
-                        "
-                    >
+    <div class="content-grid">
 
-                        <i
-                            class="
-                                bi
-                                bi-exclamation-triangle-fill
-                                me-1
-                            "
-                        ></i>
 
-                        Kolom
-                        <strong>
-                            alasan_penolakan
-                        </strong>
-                        belum tersedia di database.
+        <!-- =================================================
+             DATA PEMOHON
+        ================================================== -->
 
-                        Jalankan SQL berikut di phpMyAdmin:
+        <div>
 
-                        <br><br>
+            <div class="card">
 
-                        <code>
-                            ALTER TABLE pengajuan_ktp
-                            ADD COLUMN alasan_penolakan TEXT NULL;
-                        </code>
+                <div class="card-header">
+
+                    <div class="card-header-icon">
+
+                        <i class="bi bi-person-vcard-fill"></i>
 
                     </div>
 
-                <?php endif; ?>
+
+                    <div>
+
+                        <div class="card-title">
+                            Data Pemohon
+                        </div>
+
+                        <div class="card-subtitle">
+                            Informasi pengajuan cetak KTP
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="card-body">
+
+                    <div class="data-grid">
+
+
+                        <!-- NIK -->
+
+                        <div class="data-item">
+
+                            <div class="data-label">
+
+                                <i class="bi bi-credit-card-2-front"></i>
+
+                                NIK
+
+                            </div>
+
+
+                            <div class="data-value">
+
+                                <?= htmlspecialchars(
+                                    $pengajuan['nik'] ?? '-'
+                                ) ?>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- NAMA -->
+
+                        <div class="data-item">
+
+                            <div class="data-label">
+
+                                <i class="bi bi-person"></i>
+
+                                Nama Pemohon
+
+                            </div>
+
+
+                            <div class="data-value">
+
+                                <?= htmlspecialchars(
+                                    $pengajuan['nama_pemohon'] ?? '-'
+                                ) ?>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- STATUS -->
+
+                        <div class="data-item">
+
+                            <div class="data-label">
+
+                                <i class="bi bi-activity"></i>
+
+                                Status Pengajuan
+
+                            </div>
+
+
+                            <div class="data-value">
+
+                                <span
+                                    class="status-badge
+                                    <?= htmlspecialchars(
+                                        $statusClass
+                                    ) ?>"
+                                >
+
+                                    <i
+                                        class="bi bi-circle-fill"
+                                    ></i>
+
+
+                                    <?= htmlspecialchars(
+                                        ucfirst(
+                                            $statusSekarang
+                                        )
+                                    ) ?>
+
+                                </span>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- TANGGAL -->
+
+                        <div class="data-item">
+
+                            <div class="data-label">
+
+                                <i class="bi bi-calendar3"></i>
+
+                                Tanggal Pengajuan
+
+                            </div>
+
+
+                            <div class="data-value">
+
+                                <?= htmlspecialchars(
+                                    $tanggalPengajuan
+                                ) ?>
+
+                            </div>
+
+                        </div>
+
+
+                    </div>
+
+
+                    <!-- =====================================
+                         ALASAN PENOLAKAN
+                    ====================================== -->
+
+                    <?php if (
+                        $statusSekarang === 'ditolak' &&
+                        !empty(
+                            $pengajuan['alasan_penolakan']
+                        )
+                    ): ?>
+
+                        <div class="rejection-card">
+
+                            <div class="rejection-header">
+
+                                <i
+                                    class="bi bi-x-circle-fill"
+                                ></i>
+
+                                Alasan Penolakan
+
+                            </div>
+
+
+                            <div class="rejection-body">
+
+                                <?= htmlspecialchars(
+                                    $pengajuan[
+                                        'alasan_penolakan'
+                                    ]
+                                ) ?>
+
+                            </div>
+
+                        </div>
+
+                    <?php endif; ?>
+
+
+                </div>
 
             </div>
 
 
-            <!-- =================================================
-                 BUTTON
-            ================================================== -->
+            <!-- =============================================
+                 LAMPIRAN
+            ============================================== -->
 
-            <div class="d-flex gap-2">
+            <div
+                class="card"
+                style="margin-top:20px;"
+            >
 
-                <button
-                    type="submit"
-                    class="btn btn-primary"
-                >
+                <div class="card-header">
 
-                    <i
-                        class="
-                            bi
-                            bi-save-fill
-                            me-1
-                        "
-                    ></i>
+                    <div class="card-header-icon">
 
-                    Simpan Status
+                        <i class="bi bi-paperclip"></i>
 
-                </button>
+                    </div>
 
 
-                <a
-                    href="../pemohon.php"
-                    class="
-                        btn
-                        btn-outline-secondary
-                    "
-                >
+                    <div>
 
-                    <i
-                        class="
-                            bi
-                            bi-x-lg
-                            me-1
-                        "
-                    ></i>
+                        <div class="card-title">
+                            Lampiran Dokumen
+                        </div>
 
-                    Batal
+                        <div class="card-subtitle">
+                            Dokumen yang dikirim oleh pemohon
+                        </div>
 
-                </a>
+                    </div>
+
+                </div>
+
+
+                <div class="card-body">
+
+                    <div class="attachment-list">
+
+
+                        <!-- FOTO KTP -->
+
+                        <?php if ($gambarUrl): ?>
+
+                            <div class="attachment-item">
+
+                                <div class="attachment-info">
+
+                                    <div class="attachment-icon">
+
+                                        <i
+                                            class="bi bi-card-image"
+                                        ></i>
+
+                                    </div>
+
+
+                                    <div>
+
+                                        <div class="attachment-name">
+                                            Foto / Dokumen KTP
+                                        </div>
+
+                                        <div class="attachment-desc">
+                                            Lampiran dokumen KTP pemohon
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+
+                                <a
+                                    href="<?= htmlspecialchars(
+                                        $gambarUrl
+                                    ) ?>"
+                                    target="_blank"
+                                    class="attachment-btn"
+                                >
+
+                                    <i class="bi bi-eye"></i>
+
+                                    Lihat
+
+                                </a>
+
+                            </div>
+
+                        <?php endif; ?>
+
+
+                        <!-- FOTO DIRI -->
+
+                        <?php if ($fotoUrl): ?>
+
+                            <div class="attachment-item">
+
+                                <div class="attachment-info">
+
+                                    <div class="attachment-icon">
+
+                                        <i
+                                            class="bi bi-person-bounding-box"
+                                        ></i>
+
+                                    </div>
+
+
+                                    <div>
+
+                                        <div class="attachment-name">
+                                            Foto Diri Memegang KTP
+                                        </div>
+
+                                        <div class="attachment-desc">
+                                            Foto pemohon sedang memegang KTP
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+
+                                <a
+                                    href="<?= htmlspecialchars(
+                                        $fotoUrl
+                                    ) ?>"
+                                    target="_blank"
+                                    class="attachment-btn"
+                                >
+
+                                    <i class="bi bi-eye"></i>
+
+                                    Lihat
+
+                                </a>
+
+                            </div>
+
+                        <?php endif; ?>
+
+
+                        <!-- TIDAK ADA LAMPIRAN -->
+
+                        <?php if (
+                            !$gambarUrl &&
+                            !$fotoUrl
+                        ): ?>
+
+                            <div class="attachment-empty">
+
+                                <i
+                                    class="bi bi-file-earmark-x"
+                                ></i>
+
+                                Tidak ada lampiran dokumen.
+
+                            </div>
+
+                        <?php endif; ?>
+
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
+             PERBARUI STATUS
+        ================================================== -->
+
+        <div class="card">
+
+            <div class="card-header">
+
+                <div class="card-header-icon">
+
+                    <i class="bi bi-arrow-repeat"></i>
+
+                </div>
+
+
+                <div>
+
+                    <div class="card-title">
+                        Perbarui Status
+                    </div>
+
+                    <div class="card-subtitle">
+                        Tentukan status pengajuan KTP
+                    </div>
+
+                </div>
 
             </div>
 
 
-        </form>
+            <div class="card-body">
+
+
+                <!-- STATUS SAAT INI -->
+
+                <div class="current-status">
+
+                    <div class="current-status-label">
+                        Status saat ini
+                    </div>
+
+
+                    <span
+                        class="status-badge
+                        <?= htmlspecialchars(
+                            $statusClass
+                        ) ?>"
+                    >
+
+                        <i
+                            class="bi bi-circle-fill"
+                        ></i>
+
+
+                        <?= htmlspecialchars(
+                            ucfirst(
+                                $statusSekarang
+                            )
+                        ) ?>
+
+                    </span>
+
+                </div>
+
+
+                <form
+                    method="POST"
+                    onsubmit="return validasiForm();"
+                >
+
+                    <input
+                        type="hidden"
+                        name="id"
+                        value="<?= (int) $pengajuan['id'] ?>"
+                    >
+
+
+                    <input
+                        type="hidden"
+                        name="action"
+                        value="ubah_status"
+                    >
+
+
+                    <!-- STATUS -->
+
+                    <div class="form-group">
+
+                        <label
+                            for="status"
+                            class="form-label"
+                        >
+                            Status Pengajuan
+                        </label>
+
+
+                        <select
+                            name="status"
+                            id="status"
+                            class="form-select"
+                            onchange="tampilkanAlasan();"
+                            required
+                        >
+
+                            <option
+                                value="menunggu"
+                                <?= $statusSekarang === 'menunggu'
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                Menunggu
+                            </option>
+
+
+                            <option
+                                value="selesai"
+                                <?= $statusSekarang === 'selesai'
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                Selesai
+                            </option>
+
+
+                            <option
+                                value="ditolak"
+                                <?= $statusSekarang === 'ditolak'
+                                    ? 'selected'
+                                    : '' ?>
+                            >
+                                Ditolak
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <!-- ALASAN PENOLAKAN -->
+
+                    <div
+                        id="reasonBox"
+                        class="reason-box"
+                    >
+
+                        <div class="reason-title">
+
+                            <i
+                                class="bi bi-exclamation-triangle-fill"
+                            ></i>
+
+                            Alasan Penolakan
+
+                        </div>
+
+
+                        <textarea
+                            name="alasan_penolakan"
+                            id="alasan_penolakan"
+                            class="form-control"
+                            placeholder="Tuliskan alasan mengapa pengajuan KTP ditolak..."
+                        ><?= htmlspecialchars(
+                            $pengajuan[
+                                'alasan_penolakan'
+                            ] ?? ''
+                        ) ?></textarea>
+
+
+                        <div class="reason-help">
+
+                            Tuliskan alasan penolakan dengan jelas agar
+                            pemohon mengetahui bagian yang perlu diperbaiki.
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- BUTTON -->
+
+                    <div class="action-buttons">
+
+                        <button
+                            type="submit"
+                            class="btn btn-primary"
+                        >
+
+                            <i class="bi bi-check-lg"></i>
+
+                            Simpan Perubahan
+
+                        </button>
+
+
+                        <a
+                            href="../dashboard.php"
+                            class="btn btn-secondary"
+                        >
+
+                            <i class="bi bi-arrow-left"></i>
+
+                            Kembali
+
+                        </a>
+
+                    </div>
+
+
+                </form>
+
+            </div>
+
+        </div>
+
 
     </div>
 
 </div>
 
 
-<!-- =========================================================
-     JAVASCRIPT
-========================================================= -->
-
 <script>
+
+/* ============================================================
+   TAMPILKAN ALASAN PENOLAKAN
+============================================================ */
+
+function tampilkanAlasan() {
+
+    const status =
+        document.getElementById(
+            'status'
+        ).value;
+
+    const reasonBox =
+        document.getElementById(
+            'reasonBox'
+        );
+
+    const alasan =
+        document.getElementById(
+            'alasan_penolakan'
+        );
+
+
+    if (status === 'ditolak') {
+
+        reasonBox.classList.add(
+            'show'
+        );
+
+        alasan.required = true;
+
+    } else {
+
+        reasonBox.classList.remove(
+            'show'
+        );
+
+        alasan.required = false;
+
+        /*
+         * Kosongkan alasan jika
+         * status bukan ditolak.
+         */
+
+        alasan.value = '';
+    }
+}
+
+
+/* ============================================================
+   VALIDASI FORM
+============================================================ */
+
+function validasiForm() {
+
+    const status =
+        document.getElementById(
+            'status'
+        ).value;
+
+    const alasan =
+        document.getElementById(
+            'alasan_penolakan'
+        );
+
+
+    if (
+        status === 'ditolak' &&
+        alasan.value.trim() === ''
+    ) {
+
+        alert(
+            'Silakan tuliskan alasan penolakan terlebih dahulu.'
+        );
+
+        alasan.focus();
+
+        return false;
+    }
+
+
+    return true;
+}
+
+
+/* ============================================================
+   JALANKAN SAAT HALAMAN DIBUKA
+============================================================ */
 
 document.addEventListener(
     'DOMContentLoaded',
     function () {
 
-        const status =
-            document.getElementById(
-                'status'
-            );
-
-        const alasanBox =
-            document.getElementById(
-                'alasanBox'
-            );
-
-        const alasan =
-            document.getElementById(
-                'alasan_penolakan'
-            );
-
-
-        function updateAlasan() {
-
-            if (
-                status.value === 'ditolak'
-            ) {
-
-                alasanBox.style.display =
-                    'block';
-
-                alasan.required = true;
-
-            } else {
-
-                alasanBox.style.display =
-                    'none';
-
-                alasan.required = false;
-
-            }
-
-        }
-
-
-        status.addEventListener(
-            'change',
-            updateAlasan
-        );
-
-
-        updateAlasan();
+        tampilkanAlasan();
 
     }
 );
@@ -1149,9 +2040,6 @@ document.addEventListener(
 </script>
 
 
-<?php
+</body>
 
-require_once
-    __DIR__ . '/../../includes/footer.php';
-
-?>
+</html>
