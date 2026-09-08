@@ -1,4 +1,4 @@
-<?php
+`<?php
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/functions.php';
@@ -9,8 +9,9 @@ $errors = [];
 $success = '';
 
 $old = [
-    'nik' => '',
-    'nama_pemohon' => ''
+    'nama_atasan'   => '',
+    'nik'            => '',
+    'nama_pemohon'   => ''
 ];
 
 
@@ -47,7 +48,13 @@ if (!is_dir($uploadDir)) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    $nik = trim($_POST['nik'] ?? '');
+    $nama_atasan = trim(
+        $_POST['nama_atasan'] ?? ''
+    );
+
+    $nik = trim(
+        $_POST['nik'] ?? ''
+    );
 
     $nama_pemohon = trim(
         $_POST['nama_pemohon'] ?? ''
@@ -55,9 +62,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
     $old = [
-        'nik' => $nik,
-        'nama_pemohon' => $nama_pemohon
+        'nama_atasan'   => $nama_atasan,
+        'nik'            => $nik,
+        'nama_pemohon'   => $nama_pemohon
     ];
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | VALIDASI NAMA ATASAN
+    |--------------------------------------------------------------------------
+    |
+    | Nama atasan bersifat OPSIONAL.
+    | Jika diisi, hanya huruf dan spasi.
+    |
+    */
+
+    if ($nama_atasan !== '') {
+
+        if (
+            !preg_match(
+                '/^[a-zA-ZÀ-ÿ\s]+$/u',
+                $nama_atasan
+            )
+        ) {
+
+            $errors[] =
+                'Nama atasan hanya boleh berisi huruf dan spasi.';
+
+        } elseif (
+            mb_strlen($nama_atasan) > 100
+        ) {
+
+            $errors[] =
+                'Nama atasan maksimal 100 karakter.';
+        }
+    }
 
 
     /*
@@ -75,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /*
     |--------------------------------------------------------------------------
-    | VALIDASI NAMA
+    | VALIDASI NAMA PEMOHON
     |--------------------------------------------------------------------------
     */
 
@@ -175,20 +215,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $dokumen['error'] === UPLOAD_ERR_OK
     ) {
 
-        /*
-        | Cek ukuran
-        */
-
         if ($dokumen['size'] > $maxSize) {
 
             $errors[] =
                 'Ukuran foto KTP maksimal 5 MB.';
         }
 
-
-        /*
-        | Cek ekstensi
-        */
 
         $dokumenExtension = strtolower(
             pathinfo(
@@ -210,10 +242,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'Foto KTP hanya boleh JPG, JPEG, atau PNG.';
         }
 
-
-        /*
-        | Cek MIME
-        */
 
         $finfo = finfo_open(
             FILEINFO_MIME_TYPE
@@ -259,20 +287,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fotoDiri['error'] === UPLOAD_ERR_OK
     ) {
 
-        /*
-        | Cek ukuran
-        */
-
         if ($fotoDiri['size'] > $maxSize) {
 
             $errors[] =
                 'Ukuran foto diri maksimal 5 MB.';
         }
 
-
-        /*
-        | Cek ekstensi
-        */
 
         $fotoDiriExtension = strtolower(
             pathinfo(
@@ -294,10 +314,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'Foto diri hanya boleh JPG, JPEG, atau PNG.';
         }
 
-
-        /*
-        | Cek MIME
-        */
 
         $finfo = finfo_open(
             FILEINFO_MIME_TYPE
@@ -331,17 +347,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /*
     |--------------------------------------------------------------------------
-    | PROSES SIMPAN FILE
+    | PROSES SIMPAN
     |--------------------------------------------------------------------------
     */
 
     if (!$errors) {
-
-        /*
-        |--------------------------------------------------------------------------
-        | ID USER ADMIN
-        |--------------------------------------------------------------------------
-        */
 
         $userId = (int) (
             $_SESSION['user_id'] ?? 0
@@ -354,12 +364,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'User tidak valid. Silakan login kembali.';
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | BUAT NAMA FILE UNIK
-        |--------------------------------------------------------------------------
-        */
 
         if (!$errors) {
 
@@ -404,12 +408,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $fotoDiriExtension;
 
 
-            /*
-            |--------------------------------------------------------------------------
-            | PATH FISIK FILE
-            |--------------------------------------------------------------------------
-            */
-
             $dokumenPath =
                 $uploadDir .
                 $dokumenName;
@@ -422,7 +420,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             /*
             |--------------------------------------------------------------------------
-            | UPLOAD FOTO KTP
+            | UPLOAD DOKUMEN
             |--------------------------------------------------------------------------
             */
 
@@ -457,10 +455,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if (!$uploadFotoDiri) {
 
-                    /*
-                    | Hapus KTP jika foto diri gagal
-                    */
-
                     if (
                         file_exists(
                             $dokumenPath
@@ -489,20 +483,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 try {
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | STATUS AWAL
-                    |--------------------------------------------------------------------------
-                    */
-
                     $statusAwal = 'menunggu';
 
-
-                    /*
-                    |--------------------------------------------------------------------------
-                    | INSERT DATABASE
-                    |--------------------------------------------------------------------------
-                    */
 
                     $stmt = $pdo->prepare("
                         INSERT INTO pengajuan_ktp
@@ -512,10 +494,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             gambar_path,
                             foto_diri_path,
                             status,
-                            user_id
+                            user_id,
+                            nama_atasan
                         )
                         VALUES
                         (
+                            ?,
                             ?,
                             ?,
                             ?,
@@ -532,38 +516,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $dokumenName,
                         $fotoDiriName,
                         $statusAwal,
-                        $userId
+                        $userId,
+                        $nama_atasan !== ''
+                            ? $nama_atasan
+                            : null
                     ]);
 
-
-                    /*
-                    |--------------------------------------------------------------------------
-                    | BERHASIL
-                    |--------------------------------------------------------------------------
-                    */
 
                     $success =
                         'Pengajuan cetak KTP berhasil dikirim.';
 
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | RESET FORM
-                    |--------------------------------------------------------------------------
-                    */
-
                     $old = [
-                        'nik' => '',
-                        'nama_pemohon' => ''
+                        'nama_atasan'   => '',
+                        'nik'            => '',
+                        'nama_pemohon'   => ''
                     ];
 
                 } catch (PDOException $e) {
-
-                    /*
-                    |--------------------------------------------------------------------------
-                    | HAPUS FILE JIKA DATABASE GAGAL
-                    |--------------------------------------------------------------------------
-                    */
 
                     if (
                         file_exists(
@@ -614,12 +584,6 @@ require_once __DIR__ . '/../includes/header.php';
 
 <style>
 
-/*
-|--------------------------------------------------------------------------
-| CARD UTAMA
-|--------------------------------------------------------------------------
-*/
-
 .ktp-card {
     border: 1px solid #e8e6f2;
     border-radius: 16px;
@@ -627,17 +591,9 @@ require_once __DIR__ . '/../includes/header.php';
     background: #ffffff;
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| HEADER FORM
-|--------------------------------------------------------------------------
-*/
-
 .ktp-icon {
     width: 46px;
     height: 46px;
-
     border-radius: 12px;
 
     background: linear-gradient(
@@ -670,25 +626,11 @@ require_once __DIR__ . '/../includes/header.php';
     font-size: 12px;
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| LABEL
-|--------------------------------------------------------------------------
-*/
-
 .ktp-form .form-label {
     font-size: 13px;
     color: #3f3b56;
     margin-bottom: 6px;
 }
-
-
-/*
-|--------------------------------------------------------------------------
-| INPUT
-|--------------------------------------------------------------------------
-*/
 
 .ktp-form .form-control {
     border-color: #ddd9eb;
@@ -699,7 +641,9 @@ require_once __DIR__ . '/../includes/header.php';
 
 .ktp-form .form-control:focus {
     border-color: #8b5cf6;
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.10);
+    box-shadow:
+        0 0 0 3px
+        rgba(139, 92, 246, 0.10);
 }
 
 .ktp-form .form-text {
@@ -708,23 +652,9 @@ require_once __DIR__ . '/../includes/header.php';
     margin-top: 5px;
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| FILE INPUT
-|--------------------------------------------------------------------------
-*/
-
 .ktp-form input[type="file"] {
     padding: 8px 10px;
 }
-
-
-/*
-|--------------------------------------------------------------------------
-| INFO FOTO
-|--------------------------------------------------------------------------
-*/
 
 .photo-info {
     background: #f5f3ff;
@@ -752,13 +682,6 @@ require_once __DIR__ . '/../includes/header.php';
     line-height: 1.6;
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| PREVIEW
-|--------------------------------------------------------------------------
-*/
-
 .preview-box {
     display: none;
     margin-top: 12px;
@@ -782,13 +705,6 @@ require_once __DIR__ . '/../includes/header.php';
     border-radius: 9px;
     border: 1px solid #ddd9eb;
 }
-
-
-/*
-|--------------------------------------------------------------------------
-| BUTTON
-|--------------------------------------------------------------------------
-*/
 
 .btn-kirim {
     border: none;
@@ -820,24 +736,20 @@ require_once __DIR__ . '/../includes/header.php';
         rgba(124, 58, 237, 0.20);
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| ALERT
-|--------------------------------------------------------------------------
-*/
-
 .ktp-alert {
     border-radius: 10px;
     font-size: 12px;
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| RESPONSIVE
-|--------------------------------------------------------------------------
-*/
+.atasan-info {
+    background: #f8f7ff;
+    border: 1px solid #e7e3fa;
+    border-radius: 9px;
+    padding: 8px 11px;
+    margin-top: 5px;
+    font-size: 11px;
+    color: #77748c;
+}
 
 @media (max-width: 576px) {
 
@@ -852,7 +764,6 @@ require_once __DIR__ . '/../includes/header.php';
     .ktp-title {
         font-size: 15px;
     }
-
 }
 
 </style>
@@ -866,10 +777,7 @@ require_once __DIR__ . '/../includes/header.php';
 
             <div class="card-body p-4">
 
-
-                <!-- =================================================
-                     HEADER
-                ================================================== -->
+                <!-- HEADER -->
 
                 <div class="d-flex align-items-center gap-3 mb-4">
 
@@ -878,7 +786,6 @@ require_once __DIR__ . '/../includes/header.php';
                         <i class="bi bi-file-earmark-plus-fill"></i>
 
                     </div>
-
 
                     <div>
 
@@ -895,9 +802,7 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
 
 
-                <!-- =================================================
-                     SUCCESS
-                ================================================== -->
+                <!-- SUCCESS -->
 
                 <?php if ($success): ?>
 
@@ -912,20 +817,15 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php endif; ?>
 
 
-                <!-- =================================================
-                     ERROR
-                ================================================== -->
+                <!-- ERROR -->
 
                 <?php if ($errors): ?>
 
                     <div class="alert alert-danger ktp-alert">
 
                         <div class="fw-semibold mb-2">
-
                             Pengajuan tidak dapat dikirim:
-
                         </div>
-
 
                         <ul class="mb-0 ps-3">
 
@@ -944,9 +844,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php endif; ?>
 
 
-                <!-- =================================================
-                     FORM
-                ================================================== -->
+                <!-- FORM -->
 
                 <form
                     method="POST"
@@ -955,9 +853,47 @@ require_once __DIR__ . '/../includes/header.php';
                 >
 
 
-                    <!-- =================================================
-                         NIK
-                    ================================================== -->
+                    <!-- NAMA ATASAN -->
+
+                    <div class="mb-3">
+
+                        <label
+                            for="nama_atasan"
+                            class="form-label fw-semibold"
+                        >
+
+                            <i class="bi bi-person-badge me-1"></i>
+
+                            Nama Atasan yang Mengajukan
+
+                        </label>
+
+
+                        <input
+                            type="text"
+                            name="nama_atasan"
+                            id="nama_atasan"
+                            class="form-control"
+                            maxlength="100"
+                            placeholder="Masukkan nama atasan jika ada"
+                            value="<?= e(
+                                $old['nama_atasan']
+                            ) ?>"
+                        >
+
+
+                        <div class="atasan-info">
+
+                            <i class="bi bi-info-circle me-1"></i>
+
+                            Kosongkan jika pengajuan bukan dari atasan.
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- NIK -->
 
                     <div class="mb-3">
 
@@ -983,7 +919,9 @@ require_once __DIR__ . '/../includes/header.php';
                             inputmode="numeric"
                             placeholder="Masukkan 16 digit NIK"
                             required
-                            value="<?= e($old['nik']) ?>"
+                            value="<?= e(
+                                $old['nik']
+                            ) ?>"
                         >
 
 
@@ -994,9 +932,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
 
 
-                    <!-- =================================================
-                         NAMA
-                    ================================================== -->
+                    <!-- NAMA PEMOHON -->
 
                     <div class="mb-3">
 
@@ -1019,15 +955,15 @@ require_once __DIR__ . '/../includes/header.php';
                             maxlength="30"
                             placeholder="Nama lengkap sesuai KTP"
                             required
-                            value="<?= e($old['nama_pemohon']) ?>"
+                            value="<?= e(
+                                $old['nama_pemohon']
+                            ) ?>"
                         >
 
                     </div>
 
 
-                    <!-- =================================================
-                         FOTO KTP
-                    ================================================== -->
+                    <!-- FOTO KTP -->
 
                     <div class="mb-3">
 
@@ -1062,9 +998,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
 
 
-                    <!-- =================================================
-                         FOTO DIRI
-                    ================================================== -->
+                    <!-- FOTO DIRI -->
 
                     <div class="mb-4">
 
@@ -1096,8 +1030,6 @@ require_once __DIR__ . '/../includes/header.php';
                             Format JPG/JPEG/PNG, maksimal 5 MB.
                         </div>
 
-
-                        <!-- KETENTUAN FOTO -->
 
                         <div class="photo-info">
 
@@ -1137,8 +1069,6 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
 
 
-                        <!-- PREVIEW FOTO -->
-
                         <div
                             id="previewContainer"
                             class="preview-box"
@@ -1168,9 +1098,7 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
 
 
-                    <!-- =================================================
-                         BUTTON
-                    ================================================== -->
+                    <!-- BUTTON -->
 
                     <button
                         type="submit"
@@ -1196,15 +1124,15 @@ require_once __DIR__ . '/../includes/header.php';
 
 <script>
 
-/*
-|--------------------------------------------------------------------------
-| PREVIEW FOTO DIRI
-|--------------------------------------------------------------------------
-*/
-
 document.addEventListener(
     'DOMContentLoaded',
     function () {
+
+        /*
+        |--------------------------------------------------------------------------
+        | PREVIEW FOTO DIRI
+        |--------------------------------------------------------------------------
+        */
 
         const fotoInput =
             document.getElementById(
@@ -1247,12 +1175,6 @@ document.addEventListener(
                     }
 
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | CEK UKURAN
-                    |--------------------------------------------------------------------------
-                    */
-
                     if (
                         file.size >
                         5 * 1024 * 1024
@@ -1272,12 +1194,6 @@ document.addEventListener(
                         return;
                     }
 
-
-                    /*
-                    |--------------------------------------------------------------------------
-                    | CEK FORMAT
-                    |--------------------------------------------------------------------------
-                    */
 
                     if (
                         ![
@@ -1302,12 +1218,6 @@ document.addEventListener(
                         return;
                     }
 
-
-                    /*
-                    |--------------------------------------------------------------------------
-                    | TAMPILKAN PREVIEW
-                    |--------------------------------------------------------------------------
-                    */
 
                     const reader =
                         new FileReader();
@@ -1367,7 +1277,7 @@ document.addEventListener(
 
         /*
         |--------------------------------------------------------------------------
-        | NAMA HANYA HURUF
+        | NAMA PEMOHON
         |--------------------------------------------------------------------------
         */
 
@@ -1394,6 +1304,36 @@ document.addEventListener(
 
         }
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | NAMA ATASAN
+        |--------------------------------------------------------------------------
+        */
+
+        const namaAtasan =
+            document.getElementById(
+                'nama_atasan'
+            );
+
+
+        if (namaAtasan) {
+
+            namaAtasan.addEventListener(
+                'input',
+                function () {
+
+                    this.value =
+                        this.value.replace(
+                            /[^a-zA-ZÀ-ÿ\s]/g,
+                            ''
+                        );
+
+                }
+            );
+
+        }
+
     }
 );
 
@@ -1404,4 +1344,4 @@ document.addEventListener(
 
 require_once __DIR__ . '/../includes/footer.php';
 
-?>
+?>`

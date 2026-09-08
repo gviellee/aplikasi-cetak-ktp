@@ -5,14 +5,22 @@ require_once __DIR__ . '/../../includes/functions.php';
 
 require_admin();
 
-$id = (int) ($_GET['id'] ?? $_POST['id'] ?? 0);
+$id = (int) (
+    $_GET['id'] ??
+    $_POST['id'] ??
+    0
+);
 
 if ($id <= 0) {
-    die('ID pengajuan tidak valid.');
+
+    die(
+        'ID pengajuan tidak valid.'
+    );
 }
 
 $success = '';
 $error = '';
+
 
 /*
 |--------------------------------------------------------------------------
@@ -22,17 +30,26 @@ $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    $action = $_POST['action'] ?? '';
+    $action =
+        $_POST['action'] ?? '';
+
 
     if ($action === 'ubah_status') {
 
-        $status = strtolower(trim($_POST['status'] ?? ''));
-        $alasan_penolakan = trim($_POST['alasan_penolakan'] ?? '');
+        $status =
+            strtolower(
+                trim(
+                    $_POST['status'] ?? ''
+                )
+            );
 
-        /*
-         * STATUS YANG DIPERBOLEHKAN
-         * Diproses sudah dihapus.
-         */
+        $alasan_penolakan =
+            trim(
+                $_POST[
+                    'alasan_penolakan'
+                ] ?? ''
+            );
+
 
         $statusValid = [
             'menunggu',
@@ -40,17 +57,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'ditolak'
         ];
 
-        /*
-         * Validasi status
-         */
 
-        if (!in_array($status, $statusValid, true)) {
+        if (
+            !in_array(
+                $status,
+                $statusValid,
+                true
+            )
+        ) {
 
-            $error = 'Status pengajuan tidak valid.';
-
-        /*
-         * Jika ditolak wajib memberikan alasan
-         */
+            $error =
+                'Status pengajuan tidak valid.';
 
         } elseif (
             $status === 'ditolak' &&
@@ -62,26 +79,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         } else {
 
-            /*
-             * Jika status bukan ditolak,
-             * alasan penolakan dikosongkan.
-             */
+            if (
+                $status !== 'ditolak'
+            ) {
 
-            if ($status !== 'ditolak') {
-
-                $alasan_penolakan = null;
+                $alasan_penolakan =
+                    null;
             }
 
 
             try {
 
-                $stmt = $pdo->prepare("
-                    UPDATE pengajuan_ktp
-                    SET
-                        status = ?,
-                        alasan_penolakan = ?
-                    WHERE id = ?
-                ");
+                $stmt =
+                    $pdo->prepare("
+                        UPDATE pengajuan_ktp
+                        SET
+                            status = ?,
+                            alasan_penolakan = ?
+                        WHERE id = ?
+                    ");
+
 
                 $stmt->execute([
                     $status,
@@ -92,7 +109,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $success =
                     'Status pengajuan berhasil diperbarui.';
-
 
             } catch (PDOException $e) {
 
@@ -110,26 +126,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 |--------------------------------------------------------------------------
 */
 
-$stmt = $pdo->prepare("
-    SELECT
-        id,
-        user_id,
-        nik,
-        nama_pemohon,
-        gambar_path,
-        foto_diri_path,
-        status,
-        alasan_penolakan,
-        created_at
-    FROM pengajuan_ktp
-    WHERE id = ?
-    LIMIT 1
-");
+$stmt =
+    $pdo->prepare("
+        SELECT
+            id,
+            user_id,
+            nik,
+            nama_pemohon,
+            nama_atasan,
+            gambar_path,
+            foto_diri_path,
+            status,
+            alasan_penolakan,
+            created_at
+        FROM pengajuan_ktp
+        WHERE id = ?
+        LIMIT 1
+    ");
 
-$stmt->execute([$id]);
+
+$stmt->execute([
+    $id
+]);
+
 
 $pengajuan =
-    $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt->fetch(
+        PDO::FETCH_ASSOC
+    );
 
 
 if (!$pengajuan) {
@@ -142,28 +166,26 @@ if (!$pengajuan) {
 
 /*
 |--------------------------------------------------------------------------
-| DATA TAMBAHAN
+| STATUS
 |--------------------------------------------------------------------------
 */
 
-$statusSekarang = strtolower(
-    trim(
-        $pengajuan['status'] ?? 'menunggu'
-    )
-);
+$statusSekarang =
+    strtolower(
+        trim(
+            $pengajuan['status']
+            ?? 'menunggu'
+        )
+    );
 
-
-/*
- * Jika status lama masih "diproses",
- * tampilkan sebagai menunggu.
- */
 
 if (
     $statusSekarang === '' ||
     $statusSekarang === 'diproses'
 ) {
 
-    $statusSekarang = 'menunggu';
+    $statusSekarang =
+        'menunggu';
 }
 
 
@@ -175,13 +197,19 @@ if (
 
 $gambarUrl = '';
 
-if (!empty($pengajuan['gambar_path'])) {
+if (
+    !empty(
+        $pengajuan['gambar_path']
+    )
+) {
 
     $gambarUrl =
         '/aplikasi-cetak-ktp/uploads/images/' .
         rawurlencode(
             basename(
-                $pengajuan['gambar_path']
+                $pengajuan[
+                    'gambar_path'
+                ]
             )
         );
 }
@@ -189,13 +217,19 @@ if (!empty($pengajuan['gambar_path'])) {
 
 $fotoUrl = '';
 
-if (!empty($pengajuan['foto_diri_path'])) {
+if (
+    !empty(
+        $pengajuan['foto_diri_path']
+    )
+) {
 
     $fotoUrl =
         '/aplikasi-cetak-ktp/uploads/images/' .
         rawurlencode(
             basename(
-                $pengajuan['foto_diri_path']
+                $pengajuan[
+                    'foto_diri_path'
+                ]
             )
         );
 }
@@ -207,7 +241,9 @@ if (!empty($pengajuan['foto_diri_path'])) {
 |--------------------------------------------------------------------------
 */
 
-$statusClass = 'status-menunggu';
+$statusClass =
+    'status-menunggu';
+
 
 switch ($statusSekarang) {
 
@@ -217,6 +253,7 @@ switch ($statusSekarang) {
             'status-selesai';
 
         break;
+
 
     case 'ditolak':
 
@@ -235,14 +272,23 @@ switch ($statusSekarang) {
 
 $tanggalPengajuan = '-';
 
-if (!empty($pengajuan['created_at'])) {
+if (
+    !empty(
+        $pengajuan['created_at']
+    )
+) {
 
     $timestamp =
         strtotime(
-            $pengajuan['created_at']
+            $pengajuan[
+                'created_at'
+            ]
         );
 
-    if ($timestamp !== false) {
+
+    if (
+        $timestamp !== false
+    ) {
 
         $tanggalPengajuan =
             date(
@@ -254,7 +300,9 @@ if (!empty($pengajuan['created_at'])) {
 
 ?>
 
+
 <!DOCTYPE html>
+
 <html lang="id">
 
 <head>
@@ -271,15 +319,11 @@ if (!empty($pengajuan['created_at'])) {
 </title>
 
 
-<!-- FONT -->
-
 <link
     href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
     rel="stylesheet"
 >
 
-
-<!-- ICON -->
 
 <link
     rel="stylesheet"
@@ -390,7 +434,8 @@ body {
     border: 1px solid #e8e6f2;
 
     box-shadow:
-        0 3px 12px rgba(31, 27, 61, 0.05);
+        0 3px 12px
+        rgba(31, 27, 61, 0.05);
 
     transition: .2s;
 }
@@ -485,7 +530,7 @@ body {
 
 
 /* ============================================================
-   MAIN GRID
+   GRID
 ============================================================ */
 
 .content-grid {
@@ -515,7 +560,8 @@ body {
     border-radius: 16px;
 
     box-shadow:
-        0 8px 25px rgba(31, 27, 61, 0.06);
+        0 8px 25px
+        rgba(31, 27, 61, 0.06);
 
     overflow: hidden;
 }
@@ -525,7 +571,8 @@ body {
 
     padding: 20px 22px;
 
-    border-bottom: 1px solid #eeeeF5;
+    border-bottom:
+        1px solid #eeeeF5;
 
     display: flex;
 
@@ -607,7 +654,8 @@ body {
 
     padding: 17px 0;
 
-    border-bottom: 1px solid #eeeeF5;
+    border-bottom:
+        1px solid #eeeeF5;
 }
 
 
@@ -666,7 +714,35 @@ body {
 
 
 /* ============================================================
-   STATUS BADGE
+   BADGE ATASAN
+============================================================ */
+
+.atasan-detail {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 7px;
+
+    padding: 8px 11px;
+
+    border-radius: 9px;
+
+    background: #f5f3ff;
+
+    color: #6d28d9;
+
+    border: 1px solid #e9d5ff;
+
+    font-size: 15px;
+
+    font-weight: 700;
+}
+
+
+/* ============================================================
+   STATUS
 ============================================================ */
 
 .status-badge {
@@ -725,51 +801,53 @@ body {
 
 .attachment-list {
 
-    display: flex;
+    display: grid;
 
-    flex-direction: column;
+    grid-template-columns: 1fr 1fr;
 
-    gap: 12px;
+    gap: 16px;
+
+    width: 100%;
 }
 
 
 .attachment-item {
 
-    display: flex;
+    width: 100%;
 
-    align-items: center;
-
-    justify-content: space-between;
-
-    gap: 15px;
-
-    padding: 15px 16px;
+    min-width: 0;
 
     border: 1px solid #e8e6f2;
 
-    border-radius: 12px;
+    border-radius: 14px;
 
     background: #faf9fe;
+
+    overflow: hidden;
 }
 
 
-.attachment-info {
+.attachment-heading {
 
     display: flex;
 
     align-items: center;
 
-    gap: 12px;
+    gap: 11px;
 
-    min-width: 0;
+    padding: 14px 15px;
+
+    border-bottom: 1px solid #ebe8f4;
+
+    background: #ffffff;
 }
 
 
 .attachment-icon {
 
-    width: 42px;
+    width: 40px;
 
-    height: 42px;
+    height: 40px;
 
     flex-shrink: 0;
 
@@ -789,13 +867,19 @@ body {
 
 .attachment-icon i {
 
-    font-size: 19px;
+    font-size: 18px;
+}
+
+
+.attachment-text {
+
+    min-width: 0;
 }
 
 
 .attachment-name {
 
-    font-size: 15px;
+    font-size: 14px;
 
     font-weight: 700;
 
@@ -807,53 +891,66 @@ body {
 
 .attachment-desc {
 
-    font-size: 12px;
+    font-size: 11px;
 
     color: #8a879a;
 
     margin-top: 3px;
+
+    line-height: 1.4;
 }
 
 
-.attachment-btn {
+/* ============================================================
+   PREVIEW IMAGE
+============================================================ */
 
-    display: inline-flex;
+.attachment-preview {
+
+    width: 100%;
+
+    padding: 12px;
+
+    background: #f8f7fc;
+
+    display: flex;
 
     align-items: center;
 
-    gap: 7px;
+    justify-content: center;
 
-    padding: 9px 13px;
-
-    border-radius: 9px;
-
-    background: #7c3aed;
-
-    color: #ffffff;
-
-    text-decoration: none;
-
-    font-size: 14px;
-
-    font-weight: 700;
-
-    white-space: nowrap;
-
-    transition: .2s;
+    min-height: 230px;
 }
 
 
-.attachment-btn:hover {
+.attachment-preview img {
 
-    background: #6d28d9;
+    display: block;
 
-    transform: translateY(-1px);
+    width: 100%;
+
+    height: 230px;
+
+    object-fit: contain;
+
+    border-radius: 10px;
+
+    background: #ffffff;
+
+    border: 1px solid #e4e1ee;
+
 }
 
+
+/* ============================================================
+   EMPTY
+============================================================ */
 
 .attachment-empty {
 
-    padding: 15px;
+    grid-column: 1 / -1;
+
+    padding: 25px 15px;
 
     border-radius: 11px;
 
@@ -924,7 +1021,8 @@ body {
     border-color: #8b5cf6;
 
     box-shadow:
-        0 0 0 3px rgba(139, 92, 246, .12);
+        0 0 0 3px
+        rgba(139, 92, 246, .12);
 }
 
 
@@ -1003,7 +1101,7 @@ body {
 
 
 /* ============================================================
-   TOMBOL
+   BUTTON
 ============================================================ */
 
 .action-buttons {
@@ -1062,7 +1160,8 @@ body {
         );
 
     box-shadow:
-        0 5px 14px rgba(124, 58, 237, .22);
+        0 5px 14px
+        rgba(124, 58, 237, .22);
 }
 
 
@@ -1071,7 +1170,8 @@ body {
     transform: translateY(-1px);
 
     box-shadow:
-        0 7px 17px rgba(124, 58, 237, .28);
+        0 7px 17px
+        rgba(124, 58, 237, .28);
 }
 
 
@@ -1092,7 +1192,7 @@ body {
 
 
 /* ============================================================
-   INFORMASI PENOLAKAN
+   REJECTION
 ============================================================ */
 
 .rejection-card {
@@ -1125,7 +1225,8 @@ body {
 
     font-weight: 800;
 
-    border-bottom: 1px solid #fee2e2;
+    border-bottom:
+        1px solid #fee2e2;
 }
 
 
@@ -1144,7 +1245,7 @@ body {
 
 
 /* ============================================================
-   INFO STATUS
+   CURRENT STATUS
 ============================================================ */
 
 .current-status {
@@ -1174,10 +1275,10 @@ body {
 
 
 /* ============================================================
-   RESPONSIVE
+   RESPONSIVE TABLET
 ============================================================ */
 
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
 
     .content-grid {
 
@@ -1186,6 +1287,40 @@ body {
 
 }
 
+
+/* ============================================================
+   RESPONSIVE TABLET KECIL
+============================================================ */
+
+@media (max-width: 750px) {
+
+    .attachment-list {
+
+        grid-template-columns: 1fr;
+    }
+
+
+    .attachment-preview {
+
+        min-height: 250px;
+    }
+
+
+    .attachment-preview img {
+
+        height: auto;
+
+        max-height: 420px;
+
+        min-height: 200px;
+    }
+
+}
+
+
+/* ============================================================
+   RESPONSIVE HP
+============================================================ */
 
 @media (max-width: 600px) {
 
@@ -1240,19 +1375,75 @@ body {
     }
 
 
-    .attachment-item {
+    .attachment-heading {
 
-        align-items: flex-start;
-
-        flex-direction: column;
+        padding: 13px;
     }
 
 
-    .attachment-btn {
+    .attachment-preview {
+
+        padding: 10px;
+
+        min-height: 220px;
+    }
+
+
+    .attachment-preview img {
 
         width: 100%;
 
-        justify-content: center;
+        height: auto;
+
+        max-height: 380px;
+
+        object-fit: contain;
+    }
+
+}
+
+
+/* ============================================================
+   RESPONSIVE HP KECIL
+============================================================ */
+
+@media (max-width: 400px) {
+
+    .page-container {
+
+        padding-left: 10px;
+
+        padding-right: 10px;
+    }
+
+
+    .card-header {
+
+        padding: 14px;
+    }
+
+
+    .card-body {
+
+        padding: 14px;
+    }
+
+
+    .attachment-name {
+
+        font-size: 13px;
+    }
+
+
+    .attachment-desc {
+
+        font-size: 10px;
+    }
+
+
+    .attachment-preview img {
+
+        max-height: 320px;
     }
 
 }
@@ -1268,16 +1459,14 @@ body {
 <div class="page-container">
 
 
-    <!-- =====================================================
-         HEADER
-    ====================================================== -->
+    <!-- HEADER -->
 
     <div class="page-header">
 
         <div class="header-left">
 
             <a
-                href="../dashboard.php"
+                href="../pemohon.php"
                 class="back-button"
                 title="Kembali"
             >
@@ -1304,9 +1493,7 @@ body {
     </div>
 
 
-    <!-- =====================================================
-         ALERT SUCCESS
-    ====================================================== -->
+    <!-- SUCCESS -->
 
     <?php if ($success): ?>
 
@@ -1316,7 +1503,9 @@ body {
 
             <div>
 
-                <?= htmlspecialchars($success) ?>
+                <?= htmlspecialchars(
+                    $success
+                ) ?>
 
             </div>
 
@@ -1325,9 +1514,7 @@ body {
     <?php endif; ?>
 
 
-    <!-- =====================================================
-         ALERT ERROR
-    ====================================================== -->
+    <!-- ERROR -->
 
     <?php if ($error): ?>
 
@@ -1337,7 +1524,9 @@ body {
 
             <div>
 
-                <?= htmlspecialchars($error) ?>
+                <?= htmlspecialchars(
+                    $error
+                ) ?>
 
             </div>
 
@@ -1346,16 +1535,12 @@ body {
     <?php endif; ?>
 
 
-    <!-- =====================================================
-         CONTENT
-    ====================================================== -->
+    <!-- CONTENT -->
 
     <div class="content-grid">
 
 
-        <!-- =================================================
-             DATA PEMOHON
-        ================================================== -->
+        <!-- DATA PEMOHON -->
 
         <div>
 
@@ -1365,7 +1550,9 @@ body {
 
                     <div class="card-header-icon">
 
-                        <i class="bi bi-person-vcard-fill"></i>
+                        <i
+                            class="bi bi-person-vcard-fill"
+                        ></i>
 
                     </div>
 
@@ -1396,7 +1583,9 @@ body {
 
                             <div class="data-label">
 
-                                <i class="bi bi-credit-card-2-front"></i>
+                                <i
+                                    class="bi bi-credit-card-2-front"
+                                ></i>
 
                                 NIK
 
@@ -1406,7 +1595,9 @@ body {
                             <div class="data-value">
 
                                 <?= htmlspecialchars(
-                                    $pengajuan['nik'] ?? '-'
+                                    $pengajuan[
+                                        'nik'
+                                    ] ?? '-'
                                 ) ?>
 
                             </div>
@@ -1420,7 +1611,9 @@ body {
 
                             <div class="data-label">
 
-                                <i class="bi bi-person"></i>
+                                <i
+                                    class="bi bi-person"
+                                ></i>
 
                                 Nama Pemohon
 
@@ -1430,12 +1623,68 @@ body {
                             <div class="data-value">
 
                                 <?= htmlspecialchars(
-                                    $pengajuan['nama_pemohon'] ?? '-'
+                                    $pengajuan[
+                                        'nama_pemohon'
+                                    ] ?? '-'
                                 ) ?>
 
                             </div>
 
                         </div>
+
+
+                        <!-- NAMA ATASAN -->
+
+                        <?php if (
+                            !empty(
+                                $pengajuan[
+                                    'nama_atasan'
+                                ]
+                            )
+                        ): ?>
+
+                            <div class="data-item">
+
+                                <div class="data-label">
+
+                                    <i
+                                        class="
+                                            bi
+                                            bi-person-badge
+                                        "
+                                    ></i>
+
+                                    Nama Atasan yang Mengajukan
+
+                                </div>
+
+
+                                <div class="data-value">
+
+                                    <span
+                                        class="atasan-detail"
+                                    >
+
+                                        <i
+                                            class="
+                                                bi
+                                                bi-person-badge-fill
+                                            "
+                                        ></i>
+
+                                        <?= htmlspecialchars(
+                                            $pengajuan[
+                                                'nama_atasan'
+                                            ]
+                                        ) ?>
+
+                                    </span>
+
+                                </div>
+
+                            </div>
+
+                        <?php endif; ?>
 
 
                         <!-- STATUS -->
@@ -1444,7 +1693,9 @@ body {
 
                             <div class="data-label">
 
-                                <i class="bi bi-activity"></i>
+                                <i
+                                    class="bi bi-activity"
+                                ></i>
 
                                 Status Pengajuan
 
@@ -1454,14 +1705,18 @@ body {
                             <div class="data-value">
 
                                 <span
-                                    class="status-badge
-                                    <?= htmlspecialchars(
-                                        $statusClass
-                                    ) ?>"
+                                    class="
+                                        status-badge
+                                        <?= htmlspecialchars(
+                                            $statusClass
+                                        ) ?>"
                                 >
 
                                     <i
-                                        class="bi bi-circle-fill"
+                                        class="
+                                            bi
+                                            bi-circle-fill
+                                        "
                                     ></i>
 
 
@@ -1484,7 +1739,9 @@ body {
 
                             <div class="data-label">
 
-                                <i class="bi bi-calendar3"></i>
+                                <i
+                                    class="bi bi-calendar3"
+                                ></i>
 
                                 Tanggal Pengajuan
 
@@ -1505,14 +1762,14 @@ body {
                     </div>
 
 
-                    <!-- =====================================
-                         ALASAN PENOLAKAN
-                    ====================================== -->
+                    <!-- ALASAN PENOLAKAN -->
 
                     <?php if (
                         $statusSekarang === 'ditolak' &&
                         !empty(
-                            $pengajuan['alasan_penolakan']
+                            $pengajuan[
+                                'alasan_penolakan'
+                            ]
                         )
                     ): ?>
 
@@ -1521,7 +1778,10 @@ body {
                             <div class="rejection-header">
 
                                 <i
-                                    class="bi bi-x-circle-fill"
+                                    class="
+                                        bi
+                                        bi-x-circle-fill
+                                    "
                                 ></i>
 
                                 Alasan Penolakan
@@ -1549,9 +1809,9 @@ body {
             </div>
 
 
-            <!-- =============================================
-                 LAMPIRAN
-            ============================================== -->
+            <!-- =====================================================
+                 LAMPIRAN DOKUMEN
+            ====================================================== -->
 
             <div
                 class="card"
@@ -1562,7 +1822,9 @@ body {
 
                     <div class="card-header-icon">
 
-                        <i class="bi bi-paperclip"></i>
+                        <i
+                            class="bi bi-paperclip"
+                        ></i>
 
                     </div>
 
@@ -1587,24 +1849,29 @@ body {
                     <div class="attachment-list">
 
 
-                        <!-- FOTO KTP -->
+                        <!-- =================================================
+                             PREVIEW FOTO / DOKUMEN KTP
+                        ================================================== -->
 
                         <?php if ($gambarUrl): ?>
 
                             <div class="attachment-item">
 
-                                <div class="attachment-info">
+                                <div class="attachment-heading">
 
                                     <div class="attachment-icon">
 
                                         <i
-                                            class="bi bi-card-image"
+                                            class="
+                                                bi
+                                                bi-card-image
+                                            "
                                         ></i>
 
                                     </div>
 
 
-                                    <div>
+                                    <div class="attachment-text">
 
                                         <div class="attachment-name">
                                             Foto / Dokumen KTP
@@ -1619,43 +1886,46 @@ body {
                                 </div>
 
 
-                                <a
-                                    href="<?= htmlspecialchars(
-                                        $gambarUrl
-                                    ) ?>"
-                                    target="_blank"
-                                    class="attachment-btn"
-                                >
+                                <div class="attachment-preview">
 
-                                    <i class="bi bi-eye"></i>
+                                    <img
+                                        src="<?= htmlspecialchars(
+                                            $gambarUrl
+                                        ) ?>"
+                                        alt="Preview Foto atau Dokumen KTP"
+                                        loading="lazy"
+                                    >
 
-                                    Lihat
-
-                                </a>
+                                </div>
 
                             </div>
 
                         <?php endif; ?>
 
 
-                        <!-- FOTO DIRI -->
+                        <!-- =================================================
+                             PREVIEW FOTO DIRI MEMEGANG KTP
+                        ================================================== -->
 
                         <?php if ($fotoUrl): ?>
 
                             <div class="attachment-item">
 
-                                <div class="attachment-info">
+                                <div class="attachment-heading">
 
                                     <div class="attachment-icon">
 
                                         <i
-                                            class="bi bi-person-bounding-box"
+                                            class="
+                                                bi
+                                                bi-person-bounding-box
+                                            "
                                         ></i>
 
                                     </div>
 
 
-                                    <div>
+                                    <div class="attachment-text">
 
                                         <div class="attachment-name">
                                             Foto Diri Memegang KTP
@@ -1670,26 +1940,26 @@ body {
                                 </div>
 
 
-                                <a
-                                    href="<?= htmlspecialchars(
-                                        $fotoUrl
-                                    ) ?>"
-                                    target="_blank"
-                                    class="attachment-btn"
-                                >
+                                <div class="attachment-preview">
 
-                                    <i class="bi bi-eye"></i>
+                                    <img
+                                        src="<?= htmlspecialchars(
+                                            $fotoUrl
+                                        ) ?>"
+                                        alt="Preview Foto Diri Memegang KTP"
+                                        loading="lazy"
+                                    >
 
-                                    Lihat
-
-                                </a>
+                                </div>
 
                             </div>
 
                         <?php endif; ?>
 
 
-                        <!-- TIDAK ADA LAMPIRAN -->
+                        <!-- =================================================
+                             JIKA TIDAK ADA LAMPIRAN
+                        ================================================== -->
 
                         <?php if (
                             !$gambarUrl &&
@@ -1699,7 +1969,10 @@ body {
                             <div class="attachment-empty">
 
                                 <i
-                                    class="bi bi-file-earmark-x"
+                                    class="
+                                        bi
+                                        bi-file-earmark-x
+                                    "
                                 ></i>
 
                                 Tidak ada lampiran dokumen.
@@ -1718,9 +1991,9 @@ body {
         </div>
 
 
-        <!-- =================================================
+        <!-- =========================================================
              PERBARUI STATUS
-        ================================================== -->
+        ========================================================== -->
 
         <div class="card">
 
@@ -1728,7 +2001,9 @@ body {
 
                 <div class="card-header-icon">
 
-                    <i class="bi bi-arrow-repeat"></i>
+                    <i
+                        class="bi bi-arrow-repeat"
+                    ></i>
 
                 </div>
 
@@ -1761,14 +2036,18 @@ body {
 
 
                     <span
-                        class="status-badge
-                        <?= htmlspecialchars(
-                            $statusClass
-                        ) ?>"
+                        class="
+                            status-badge
+                            <?= htmlspecialchars(
+                                $statusClass
+                            ) ?>"
                     >
 
                         <i
-                            class="bi bi-circle-fill"
+                            class="
+                                bi
+                                bi-circle-fill
+                            "
                         ></i>
 
 
@@ -1791,7 +2070,8 @@ body {
                     <input
                         type="hidden"
                         name="id"
-                        value="<?= (int) $pengajuan['id'] ?>"
+                        value="<?= (int)
+                            $pengajuan['id'] ?>"
                     >
 
 
@@ -1810,7 +2090,9 @@ body {
                             for="status"
                             class="form-label"
                         >
+
                             Status Pengajuan
+
                         </label>
 
 
@@ -1856,7 +2138,7 @@ body {
                     </div>
 
 
-                    <!-- ALASAN PENOLAKAN -->
+                    <!-- ALASAN -->
 
                     <div
                         id="reasonBox"
@@ -1866,7 +2148,10 @@ body {
                         <div class="reason-title">
 
                             <i
-                                class="bi bi-exclamation-triangle-fill"
+                                class="
+                                    bi
+                                    bi-exclamation-triangle-fill
+                                "
                             ></i>
 
                             Alasan Penolakan
@@ -1913,11 +2198,16 @@ body {
 
 
                         <a
-                            href="../dashboard.php"
+                            href="../pemohon.php"
                             class="btn btn-secondary"
                         >
 
-                            <i class="bi bi-arrow-left"></i>
+                            <i
+                                class="
+                                    bi
+                                    bi-arrow-left
+                                "
+                            ></i>
 
                             Kembali
 
@@ -1940,9 +2230,11 @@ body {
 
 <script>
 
-/* ============================================================
-   TAMPILKAN ALASAN PENOLAKAN
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| TAMPILKAN ALASAN
+|--------------------------------------------------------------------------
+*/
 
 function tampilkanAlasan() {
 
@@ -1951,10 +2243,12 @@ function tampilkanAlasan() {
             'status'
         ).value;
 
+
     const reasonBox =
         document.getElementById(
             'reasonBox'
         );
+
 
     const alasan =
         document.getElementById(
@@ -1962,13 +2256,16 @@ function tampilkanAlasan() {
         );
 
 
-    if (status === 'ditolak') {
+    if (
+        status === 'ditolak'
+    ) {
 
         reasonBox.classList.add(
             'show'
         );
 
-        alasan.required = true;
+        alasan.required =
+            true;
 
     } else {
 
@@ -1976,21 +2273,20 @@ function tampilkanAlasan() {
             'show'
         );
 
-        alasan.required = false;
+        alasan.required =
+            false;
 
-        /*
-         * Kosongkan alasan jika
-         * status bukan ditolak.
-         */
-
-        alasan.value = '';
+        alasan.value =
+            '';
     }
 }
 
 
-/* ============================================================
-   VALIDASI FORM
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| VALIDASI
+|--------------------------------------------------------------------------
+*/
 
 function validasiForm() {
 
@@ -1998,6 +2294,7 @@ function validasiForm() {
         document.getElementById(
             'status'
         ).value;
+
 
     const alasan =
         document.getElementById(
@@ -2024,9 +2321,11 @@ function validasiForm() {
 }
 
 
-/* ============================================================
-   JALANKAN SAAT HALAMAN DIBUKA
-============================================================ */
+/*
+|--------------------------------------------------------------------------
+| SAAT HALAMAN DIBUKA
+|--------------------------------------------------------------------------
+*/
 
 document.addEventListener(
     'DOMContentLoaded',

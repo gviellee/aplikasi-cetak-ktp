@@ -78,7 +78,7 @@ $totalUser = $pdo
 
 /*
 |--------------------------------------------------------------------------
-| DATA PENGAJUAN SESUAI FILTER
+| DATA PENGAJUAN
 |--------------------------------------------------------------------------
 */
 
@@ -113,12 +113,12 @@ if ($filter === 'all') {
 }
 
 
-$pengajuan = $stmt->fetchAll();
+$pengajuan = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
 /*
 |--------------------------------------------------------------------------
-| JUDUL TABEL SESUAI FILTER
+| JUDUL DATA
 |--------------------------------------------------------------------------
 */
 
@@ -173,12 +173,6 @@ switch ($filter) {
 }
 
 
-/*
-|--------------------------------------------------------------------------
-| PAGE TITLE
-|--------------------------------------------------------------------------
-*/
-
 $pageTitle = 'Dashboard Admin';
 
 require_once __DIR__ . '/../includes/header.php';
@@ -193,75 +187,42 @@ require_once __DIR__ . '/../includes/header.php';
 ========================================================= */
 
 .dashboard-stats {
-
     width: 100%;
-
     display: flex;
-
     justify-content: center;
-
     align-items: stretch;
-
     gap: 18px;
-
     margin: 0 auto 28px auto;
-
     flex-wrap: wrap;
 }
 
 
 .dashboard-stat-item {
-
     width: 180px;
-
     flex: 0 0 180px;
 }
 
 
-/* =========================================================
-   LINK KOTAK
-========================================================= */
-
 .stat-link {
-
     display: block;
-
     text-decoration: none;
-
     color: inherit;
-
     height: 100%;
 }
 
 
-/* =========================================================
-   STAT CARD
-========================================================= */
-
 .stat-card {
-
     width: 100%;
-
     min-height: 160px;
-
     background: #ffffff;
-
     border: 1px solid #e4e3f4;
-
     border-radius: 16px;
-
     padding: 22px 18px;
-
     display: flex;
-
     flex-direction: column;
-
     align-items: flex-start;
-
     justify-content: center;
-
-    box-shadow:
-        0 4px 14px rgba(31, 41, 55, 0.04);
+    box-shadow: 0 4px 14px rgba(31, 41, 55, 0.04);
 
     transition:
         transform .2s ease,
@@ -271,130 +232,77 @@ require_once __DIR__ . '/../includes/header.php';
 
 
 .stat-card:hover {
-
     transform: translateY(-4px);
-
-    box-shadow:
-        0 10px 25px rgba(31, 41, 55, 0.10);
-
+    box-shadow: 0 10px 25px rgba(31, 41, 55, 0.10);
 }
 
 
 .stat-card.active {
-
     border: 2px solid #7c3aed;
-
-    box-shadow:
-        0 8px 25px rgba(124, 58, 237, 0.15);
-
+    box-shadow: 0 8px 25px rgba(124, 58, 237, 0.15);
     transform: translateY(-3px);
-
 }
 
 
-/* =========================================================
-   ICON
-========================================================= */
-
 .stat-icon {
-
     width: 46px;
-
     height: 46px;
-
     border-radius: 12px;
-
     display: flex;
-
     align-items: center;
-
     justify-content: center;
-
     color: #ffffff;
-
     font-size: 21px;
-
     margin-bottom: 14px;
 }
 
 
-/* =========================================================
-   ANGKA
-========================================================= */
-
 .stat-value {
-
     font-size: 28px;
-
     line-height: 1;
-
     font-weight: 700;
-
     color: #111827;
-
     margin-bottom: 7px;
 }
 
 
-/* =========================================================
-   LABEL
-========================================================= */
-
 .stat-label {
-
     font-size: 14px;
-
     color: #64748b;
-
     font-weight: 500;
 }
 
 
 /* =========================================================
-   CARD UMUM
+   CARD
 ========================================================= */
 
 .dashboard-box {
-
     background: #ffffff;
-
     border: 1px solid #eceaf7;
-
     border-radius: 16px;
-
-    box-shadow:
-        0 4px 15px rgba(31, 41, 55, 0.04);
+    box-shadow: 0 4px 15px rgba(31, 41, 55, 0.04);
 }
 
 
 /* =========================================================
-   HEADER TABEL
+   HEADER PENGAJUAN
 ========================================================= */
 
 .pengajuan-title {
-
     display: flex;
-
     align-items: center;
-
     gap: 12px;
 }
 
 
 .pengajuan-title-icon {
-
     width: 42px;
-
     height: 42px;
-
     border-radius: 11px;
-
     display: flex;
-
     align-items: center;
-
     justify-content: center;
-
     color: #ffffff;
 
     background:
@@ -413,43 +321,29 @@ require_once __DIR__ . '/../includes/header.php';
 ========================================================= */
 
 .search-box {
-
     position: relative;
-
     width: 100%;
-
     margin-bottom: 18px;
 }
 
 
 .search-box-icon {
-
     position: absolute;
-
     left: 16px;
-
     top: 50%;
-
     transform: translateY(-50%);
-
     color: #7c3aed;
-
     font-size: 18px;
-
     pointer-events: none;
-
     z-index: 2;
 }
 
 
 .search-input {
-
     width: 100%;
-
     height: 48px;
 
     border: 1px solid #ddd6fe;
-
     border-radius: 12px;
 
     padding:
@@ -459,11 +353,8 @@ require_once __DIR__ . '/../includes/header.php';
         46px;
 
     font-size: 14px;
-
     color: #1f2937;
-
     background: #ffffff;
-
     outline: none;
 
     transition:
@@ -473,13 +364,11 @@ require_once __DIR__ . '/../includes/header.php';
 
 
 .search-input::placeholder {
-
     color: #94a3b8;
 }
 
 
 .search-input:focus {
-
     border-color: #7c3aed;
 
     box-shadow:
@@ -488,31 +377,25 @@ require_once __DIR__ . '/../includes/header.php';
 
 
 .search-clear {
-
     position: absolute;
 
     right: 12px;
-
     top: 50%;
 
     transform: translateY(-50%);
 
     width: 28px;
-
     height: 28px;
 
     border: none;
-
     border-radius: 50%;
 
     background: #f1f5f9;
-
     color: #64748b;
 
     display: none;
 
     align-items: center;
-
     justify-content: center;
 
     cursor: pointer;
@@ -522,35 +405,29 @@ require_once __DIR__ . '/../includes/header.php';
 
 
 .search-clear:hover {
-
     background: #ede9fe;
-
     color: #7c3aed;
 }
 
 
 .search-clear.show {
-
     display: flex;
 }
 
 
 /* =========================================================
-   SEARCH RESULT INFO
+   INFO SEARCH
 ========================================================= */
 
 .search-result-info {
-
     display: none;
 
     padding: 10px 14px;
-
     margin-bottom: 15px;
 
     border-radius: 10px;
 
     background: #f5f3ff;
-
     color: #6d28d9;
 
     font-size: 13px;
@@ -558,13 +435,11 @@ require_once __DIR__ . '/../includes/header.php';
 
 
 .search-result-info.show {
-
     display: block;
 }
 
 
 .search-result-info strong {
-
     font-weight: 700;
 }
 
@@ -574,21 +449,17 @@ require_once __DIR__ . '/../includes/header.php';
 ========================================================= */
 
 .dashboard-table {
-
     overflow: hidden;
-
     border-radius: 12px;
 }
 
 
 .dashboard-table thead th {
-
     background: #f7f6fc;
 
     color: #111827;
 
     font-size: 13px;
-
     font-weight: 700;
 
     padding: 15px;
@@ -600,7 +471,6 @@ require_once __DIR__ . '/../includes/header.php';
 
 
 .dashboard-table tbody td {
-
     padding: 15px;
 
     font-size: 14px;
@@ -610,8 +480,65 @@ require_once __DIR__ . '/../includes/header.php';
 
 
 .dashboard-table tbody tr:last-child td {
-
     border-bottom: none;
+}
+
+
+/* =========================================================
+   NAMA PEMOHON
+========================================================= */
+
+.nama-pemohon {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+
+    min-width: 180px;
+}
+
+
+.nama-pemohon-text {
+    font-weight: 600;
+    color: #1f2937;
+}
+
+
+/* =========================================================
+   TAG NAMA ATASAN
+========================================================= */
+
+.nama-atasan-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+
+    padding: 4px 9px;
+
+    background: #f5f3ff;
+    color: #6d28d9;
+
+    border: 1px solid #ddd6fe;
+
+    border-radius: 20px;
+
+    font-size: 11px;
+    font-weight: 600;
+
+    max-width: 220px;
+}
+
+
+.nama-atasan-tag i {
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+
+.nama-atasan-tag span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 
@@ -620,7 +547,6 @@ require_once __DIR__ . '/../includes/header.php';
 ========================================================= */
 
 .alasan-ditolak {
-
     max-width: 280px;
 
     color: #dc2626;
@@ -634,19 +560,14 @@ require_once __DIR__ . '/../includes/header.php';
 ========================================================= */
 
 .empty-state {
-
     padding: 55px 20px;
-
     text-align: center;
-
     color: #64748b;
 }
 
 
 .empty-state-icon {
-
     width: 65px;
-
     height: 65px;
 
     margin: 0 auto 15px;
@@ -654,13 +575,10 @@ require_once __DIR__ . '/../includes/header.php';
     border-radius: 50%;
 
     display: flex;
-
     align-items: center;
-
     justify-content: center;
 
     background: #f5f3ff;
-
     color: #7c3aed;
 
     font-size: 28px;
@@ -668,17 +586,15 @@ require_once __DIR__ . '/../includes/header.php';
 
 
 /* =========================================================
-   NO SEARCH RESULT
+   SEARCH EMPTY
 ========================================================= */
 
 .search-empty-row {
-
     display: none;
 }
 
 
 .search-empty-row.show {
-
     display: table-row;
 }
 
@@ -690,9 +606,7 @@ require_once __DIR__ . '/../includes/header.php';
 @media (max-width: 1100px) {
 
     .dashboard-stat-item {
-
         width: 170px;
-
         flex-basis: 170px;
     }
 
@@ -702,16 +616,18 @@ require_once __DIR__ . '/../includes/header.php';
 @media (max-width: 768px) {
 
     .dashboard-stats {
-
         gap: 14px;
     }
 
 
     .dashboard-stat-item {
-
         width: calc(50% - 7px);
-
         flex-basis: calc(50% - 7px);
+    }
+
+
+    .nama-pemohon {
+        min-width: 150px;
     }
 
 }
@@ -720,10 +636,13 @@ require_once __DIR__ . '/../includes/header.php';
 @media (max-width: 480px) {
 
     .dashboard-stat-item {
-
         width: 100%;
-
         flex-basis: 100%;
+    }
+
+
+    .nama-atasan-tag {
+        max-width: 160px;
     }
 
 }
@@ -740,12 +659,14 @@ require_once __DIR__ . '/../includes/header.php';
     <div style="position:relative; z-index:1;">
 
         <div
-            class="d-flex
-                   flex-column
-                   flex-md-row
-                   align-items-md-center
-                   justify-content-between
-                   gap-3"
+            class="
+                d-flex
+                flex-column
+                flex-md-row
+                align-items-md-center
+                justify-content-between
+                gap-3
+            "
         >
 
             <div>
@@ -794,8 +715,12 @@ require_once __DIR__ . '/../includes/header.php';
         >
 
             <div
-                class="stat-card
-                <?= $filter === 'all' ? 'active' : '' ?>"
+                class="
+                    stat-card
+                    <?= $filter === 'all'
+                        ? 'active'
+                        : '' ?>
+                "
             >
 
                 <div
@@ -835,7 +760,6 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
 
-
     <!-- MENUNGGU -->
 
     <div class="dashboard-stat-item">
@@ -846,8 +770,12 @@ require_once __DIR__ . '/../includes/header.php';
         >
 
             <div
-                class="stat-card
-                <?= $filter === 'pending' ? 'active' : '' ?>"
+                class="
+                    stat-card
+                    <?= $filter === 'pending'
+                        ? 'active'
+                        : '' ?>
+                "
             >
 
                 <div
@@ -887,7 +815,6 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
 
-
     <!-- SELESAI -->
 
     <div class="dashboard-stat-item">
@@ -898,8 +825,12 @@ require_once __DIR__ . '/../includes/header.php';
         >
 
             <div
-                class="stat-card
-                <?= $filter === 'selesai' ? 'active' : '' ?>"
+                class="
+                    stat-card
+                    <?= $filter === 'selesai'
+                        ? 'active'
+                        : '' ?>
+                "
             >
 
                 <div
@@ -939,7 +870,6 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
 
-
     <!-- DITOLAK -->
 
     <div class="dashboard-stat-item">
@@ -950,8 +880,12 @@ require_once __DIR__ . '/../includes/header.php';
         >
 
             <div
-                class="stat-card
-                <?= $filter === 'ditolak' ? 'active' : '' ?>"
+                class="
+                    stat-card
+                    <?= $filter === 'ditolak'
+                        ? 'active'
+                        : '' ?>
+                "
             >
 
                 <div
@@ -989,7 +923,6 @@ require_once __DIR__ . '/../includes/header.php';
         </a>
 
     </div>
-
 
 
     <!-- TOTAL PEMOHON -->
@@ -1043,7 +976,6 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 
-
 <!-- =========================================================
      AKSI CEPAT
 ========================================================= -->
@@ -1051,11 +983,13 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="card dashboard-box p-4 mb-4">
 
     <div
-        class="d-flex
-               align-items-center
-               justify-content-between
-               flex-wrap
-               gap-3"
+        class="
+            d-flex
+            align-items-center
+            justify-content-between
+            flex-wrap
+            gap-3
+        "
     >
 
         <div>
@@ -1063,7 +997,11 @@ require_once __DIR__ . '/../includes/header.php';
             <h6 class="fw-bold mb-1">
 
                 <i
-                    class="bi bi-lightning-charge-fill me-1"
+                    class="
+                        bi
+                        bi-lightning-charge-fill
+                        me-1
+                    "
                     style="color:#f59e0b;"
                 ></i>
 
@@ -1089,7 +1027,11 @@ require_once __DIR__ . '/../includes/header.php';
             >
 
                 <i
-                    class="bi bi-file-earmark-plus-fill me-1"
+                    class="
+                        bi
+                        bi-file-earmark-plus-fill
+                        me-1
+                    "
                 ></i>
 
                 Ajukan Cetak KTP
@@ -1117,7 +1059,6 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 
-
 <!-- =========================================================
      DATA PENGAJUAN
 ========================================================= -->
@@ -1128,21 +1069,25 @@ require_once __DIR__ . '/../includes/header.php';
     <!-- HEADER -->
 
     <div
-        class="d-flex
-               align-items-center
-               justify-content-between
-               flex-wrap
-               gap-3
-               mb-4"
+        class="
+            d-flex
+            align-items-center
+            justify-content-between
+            flex-wrap
+            gap-3
+            mb-4
+        "
     >
-
 
         <div class="pengajuan-title">
 
             <div class="pengajuan-title-icon">
 
                 <i
-                    class="bi bi-<?= e($iconPengajuan) ?>"
+                    class="
+                        bi
+                        bi-<?= e($iconPengajuan) ?>
+                    "
                 ></i>
 
             </div>
@@ -1171,12 +1116,15 @@ require_once __DIR__ . '/../includes/header.php';
         <div>
 
             <span
-                class="badge rounded-pill
-                       text-bg-light
-                       border
-                       px-3
-                       py-2"
                 id="dataCount"
+                class="
+                    badge
+                    rounded-pill
+                    text-bg-light
+                    border
+                    px-3
+                    py-2
+                "
             >
 
                 <?= count($pengajuan) ?> Data
@@ -1188,21 +1136,29 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
 
-
     <!-- =====================================================
-         SEARCH REALTIME
+         SEARCH
     ====================================================== -->
 
     <div class="search-box">
 
-        <i class="bi bi-search search-box-icon"></i>
+        <i
+            class="
+                bi
+                bi-search
+                search-box-icon
+            "
+        ></i>
 
 
         <input
             type="text"
             id="searchInput"
             class="search-input"
-            placeholder="Cari nama pemohon atau NIK..."
+            placeholder="
+                Cari nama pemohon,
+                nama atasan, atau NIK...
+            "
             autocomplete="off"
         >
 
@@ -1221,9 +1177,8 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
 
-
     <!-- =====================================================
-         INFORMASI HASIL SEARCH
+         INFO HASIL SEARCH
     ====================================================== -->
 
     <div
@@ -1248,14 +1203,20 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 
 
-
     <!-- =====================================================
          TABLE
     ====================================================== -->
 
     <div class="table-responsive dashboard-table">
 
-        <table class="table table-hover align-middle mb-0">
+        <table
+            class="
+                table
+                table-hover
+                align-middle
+                mb-0
+            "
+        >
 
             <thead>
 
@@ -1272,9 +1233,13 @@ require_once __DIR__ . '/../includes/header.php';
                     <th>STATUS</th>
 
 
-                    <?php if ($filter === 'ditolak'): ?>
+                    <?php if (
+                        $filter === 'ditolak'
+                    ): ?>
 
-                        <th>ALASAN PENOLAKAN</th>
+                        <th>
+                            ALASAN PENOLAKAN
+                        </th>
 
                     <?php endif; ?>
 
@@ -1303,9 +1268,15 @@ require_once __DIR__ . '/../includes/header.php';
 
                         <div class="empty-state">
 
-                            <div class="empty-state-icon">
+                            <div
+                                class="
+                                    empty-state-icon
+                                "
+                            >
 
-                                <i class="bi bi-inbox"></i>
+                                <i
+                                    class="bi bi-inbox"
+                                ></i>
 
                             </div>
 
@@ -1338,11 +1309,14 @@ require_once __DIR__ . '/../includes/header.php';
 
                 $no = 1;
 
-                foreach ($pengajuan as $row):
+                foreach (
+                    $pengajuan
+                    as $row
+                ):
 
                     /*
                     |--------------------------------------------------------------------------
-                    | DATA UNTUK SEARCH JAVASCRIPT
+                    | DATA SEARCH
                     |--------------------------------------------------------------------------
                     */
 
@@ -1350,23 +1324,52 @@ require_once __DIR__ . '/../includes/header.php';
                         strtolower(
                             trim(
                                 (string)
-                                ($row['nik'] ?? '')
+                                (
+                                    $row['nik']
+                                    ?? ''
+                                )
                             )
                         );
+
 
                     $namaSearch =
                         strtolower(
                             trim(
                                 (string)
-                                ($row['nama_pemohon'] ?? '')
+                                (
+                                    $row[
+                                        'nama_pemohon'
+                                    ]
+                                    ?? ''
+                                )
                             )
                         );
+
+
+                    $atasanSearch =
+                        strtolower(
+                            trim(
+                                (string)
+                                (
+                                    $row[
+                                        'nama_atasan'
+                                    ]
+                                    ?? ''
+                                )
+                            )
+                        );
+
 
                     $usernameSearch =
                         strtolower(
                             trim(
                                 (string)
-                                ($row['username'] ?? '')
+                                (
+                                    $row[
+                                        'username'
+                                    ]
+                                    ?? ''
+                                )
                             )
                         );
 
@@ -1379,6 +1382,8 @@ require_once __DIR__ . '/../includes/header.php';
                             $nikSearch
                             . ' '
                             . $namaSearch
+                            . ' '
+                            . $atasanSearch
                             . ' '
                             . $usernameSearch
                         ) ?>"
@@ -1394,7 +1399,6 @@ require_once __DIR__ . '/../includes/header.php';
                         </td>
 
 
-
                         <!-- NIK -->
 
                         <td class="fw-semibold">
@@ -1406,17 +1410,76 @@ require_once __DIR__ . '/../includes/header.php';
                         </td>
 
 
-
-                        <!-- NAMA -->
+                        <!-- NAMA PEMOHON + TAG ATASAN -->
 
                         <td>
 
-                            <?= e(
-                                $row['nama_pemohon']
-                            ) ?>
+                            <div
+                                class="nama-pemohon"
+                            >
+
+                                <div
+                                    class="
+                                        nama-pemohon-text
+                                    "
+                                >
+
+                                    <?= e(
+                                        $row[
+                                            'nama_pemohon'
+                                        ]
+                                    ) ?>
+
+                                </div>
+
+
+                                <?php if (
+                                    !empty(
+                                        trim(
+                                            $row[
+                                                'nama_atasan'
+                                            ]
+                                            ?? ''
+                                        )
+                                    )
+                                ): ?>
+
+                                    <div
+                                        class="
+                                            nama-atasan-tag
+                                        "
+                                        title="<?= e(
+                                            $row[
+                                                'nama_atasan'
+                                            ]
+                                        ) ?>"
+                                    >
+
+                                        <i
+                                            class="
+                                                bi
+                                                bi-person-badge-fill
+                                            "
+                                        ></i>
+
+
+                                        <span>
+
+                                            <?= e(
+                                                $row[
+                                                    'nama_atasan'
+                                                ]
+                                            ) ?>
+
+                                        </span>
+
+                                    </div>
+
+                                <?php endif; ?>
+
+                            </div>
 
                         </td>
-
 
 
                         <!-- AKUN -->
@@ -1424,11 +1487,13 @@ require_once __DIR__ . '/../includes/header.php';
                         <td>
 
                             <?= e(
-                                $row['username'] ?? '-'
+                                $row[
+                                    'username'
+                                ]
+                                ?? '-'
                             ) ?>
 
                         </td>
-
 
 
                         <!-- STATUS -->
@@ -1442,43 +1507,55 @@ require_once __DIR__ . '/../includes/header.php';
                         </td>
 
 
-
                         <!-- ALASAN PENOLAKAN -->
 
-                        <?php if ($filter === 'ditolak'): ?>
+                        <?php if (
+                            $filter === 'ditolak'
+                        ): ?>
 
                             <td>
 
                                 <?php
 
                                 $alasan =
-                                    $row['alasan_penolakan']
+                                    $row[
+                                        'alasan_penolakan'
+                                    ]
                                     ?? '';
 
                                 ?>
 
 
                                 <?php if (
-                                    trim($alasan) !== ''
+                                    trim($alasan)
+                                    !== ''
                                 ): ?>
 
                                     <div
-                                        class="alasan-ditolak"
+                                        class="
+                                            alasan-ditolak
+                                        "
                                     >
 
                                         <i
-                                            class="bi
-                                                   bi-exclamation-circle
-                                                   me-1"
+                                            class="
+                                                bi
+                                                bi-exclamation-circle
+                                                me-1
+                                            "
                                         ></i>
 
-                                        <?= e($alasan) ?>
+                                        <?= e(
+                                            $alasan
+                                        ) ?>
 
                                     </div>
 
                                 <?php else: ?>
 
-                                    <span class="text-muted">
+                                    <span
+                                        class="text-muted"
+                                    >
 
                                         Tidak ada alasan.
 
@@ -1491,16 +1568,22 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php endif; ?>
 
 
-
                         <!-- TANGGAL -->
 
-                        <td class="text-muted small">
+                        <td
+                            class="
+                                text-muted
+                                small
+                            "
+                        >
 
                             <?= e(
                                 date(
                                     'd M Y, H:i',
                                     strtotime(
-                                        $row['created_at']
+                                        $row[
+                                            'created_at'
+                                        ]
                                     )
                                 )
                             ) ?>
@@ -1515,7 +1598,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 
                 <!-- =================================================
-                     BARIS JIKA SEARCH TIDAK MENEMUKAN DATA
+                     SEARCH TIDAK DITEMUKAN
                 ================================================== -->
 
                 <tr
@@ -1530,11 +1613,22 @@ require_once __DIR__ . '/../includes/header.php';
                         ?>"
                     >
 
-                        <div class="empty-state">
+                        <div
+                            class="empty-state"
+                        >
 
-                            <div class="empty-state-icon">
+                            <div
+                                class="
+                                    empty-state-icon
+                                "
+                            >
 
-                                <i class="bi bi-search"></i>
+                                <i
+                                    class="
+                                        bi
+                                        bi-search
+                                    "
+                                ></i>
 
                             </div>
 
@@ -1549,8 +1643,8 @@ require_once __DIR__ . '/../includes/header.php';
                             <p class="small mb-0">
 
                                 Tidak ada nama pemohon,
-                                NIK, atau akun yang sesuai
-                                dengan pencarian.
+                                nama atasan, NIK, atau akun
+                                yang sesuai dengan pencarian.
 
                             </p>
 
@@ -1574,278 +1668,313 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 
-
 <!-- =========================================================
-     REALTIME SEARCH JAVASCRIPT
+     JAVASCRIPT SEARCH
 ========================================================= -->
 
 <script>
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener(
+    'DOMContentLoaded',
+    function () {
 
-    const searchInput =
-        document.getElementById('searchInput');
-
-    const clearSearch =
-        document.getElementById('clearSearch');
-
-    const resultInfo =
-        document.getElementById('searchResultInfo');
-
-    const resultCount =
-        document.getElementById('searchResultCount');
-
-    const searchKeyword =
-        document.getElementById('searchKeyword');
-
-    const dataCount =
-        document.getElementById('dataCount');
-
-    const searchEmptyRow =
-        document.getElementById('searchEmptyRow');
-
-    const rows =
-        document.querySelectorAll('.pengajuan-row');
+        const searchInput =
+            document.getElementById(
+                'searchInput'
+            );
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | FUNGSI SEARCH
-    |--------------------------------------------------------------------------
-    */
-
-    function doSearch() {
-
-        const keyword =
-            searchInput.value
-                .toLowerCase()
-                .trim();
+        const clearSearch =
+            document.getElementById(
+                'clearSearch'
+            );
 
 
-        let visibleCount = 0;
+        const resultInfo =
+            document.getElementById(
+                'searchResultInfo'
+            );
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | JIKA SEARCH KOSONG
-        |--------------------------------------------------------------------------
-        */
+        const resultCount =
+            document.getElementById(
+                'searchResultCount'
+            );
 
-        if (keyword === '') {
 
-            rows.forEach(function (row) {
+        const searchKeyword =
+            document.getElementById(
+                'searchKeyword'
+            );
 
-                row.style.display = '';
 
-            });
+        const dataCount =
+            document.getElementById(
+                'dataCount'
+            );
+
+
+        const searchEmptyRow =
+            document.getElementById(
+                'searchEmptyRow'
+            );
+
+
+        const rows =
+            document.querySelectorAll(
+                '.pengajuan-row'
+            );
+
+
+        function doSearch() {
+
+            const keyword =
+                searchInput.value
+                    .toLowerCase()
+                    .trim();
+
+
+            let visibleCount = 0;
 
 
             /*
-            | Nomor kembali normal
+            |--------------------------------------------------------------------------
+            | SEARCH KOSONG
+            |--------------------------------------------------------------------------
+            */
+
+            if (keyword === '') {
+
+                rows.forEach(
+                    function (row) {
+
+                        row.style.display = '';
+
+                    }
+                );
+
+
+                let nomor = 1;
+
+
+                rows.forEach(
+                    function (row) {
+
+                        const nomorCell =
+                            row.querySelector(
+                                '.nomor-data'
+                            );
+
+
+                        if (nomorCell) {
+
+                            nomorCell.textContent =
+                                nomor++;
+
+                        }
+
+                    }
+                );
+
+
+                if (searchEmptyRow) {
+
+                    searchEmptyRow.classList.remove(
+                        'show'
+                    );
+
+                }
+
+
+                resultInfo.classList.remove(
+                    'show'
+                );
+
+
+                clearSearch.classList.remove(
+                    'show'
+                );
+
+
+                dataCount.textContent =
+                    rows.length + ' Data';
+
+
+                return;
+
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | SEARCH AKTIF
+            |--------------------------------------------------------------------------
+            */
+
+            clearSearch.classList.add(
+                'show'
+            );
+
+
+            rows.forEach(
+                function (row) {
+
+                    const searchableData =
+                        (
+                            row.dataset.search
+                            || ''
+                        ).toLowerCase();
+
+
+                    if (
+                        searchableData.includes(
+                            keyword
+                        )
+                    ) {
+
+                        row.style.display = '';
+
+                        visibleCount++;
+
+                    } else {
+
+                        row.style.display = 'none';
+
+                    }
+
+                }
+            );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | NOMOR URUT
+            |--------------------------------------------------------------------------
             */
 
             let nomor = 1;
 
-            rows.forEach(function (row) {
 
-                const nomorCell =
-                    row.querySelector('.nomor-data');
+            rows.forEach(
+                function (row) {
 
-                if (nomorCell) {
+                    if (
+                        row.style.display
+                        !== 'none'
+                    ) {
 
-                    nomorCell.textContent =
-                        nomor++;
+                        const nomorCell =
+                            row.querySelector(
+                                '.nomor-data'
+                            );
+
+
+                        if (nomorCell) {
+
+                            nomorCell.textContent =
+                                nomor++;
+
+                        }
+
+                    }
 
                 }
+            );
 
-            });
 
+            /*
+            |--------------------------------------------------------------------------
+            | JUMLAH DATA
+            |--------------------------------------------------------------------------
+            */
+
+            dataCount.textContent =
+                visibleCount + ' Data';
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | INFO PENCARIAN
+            |--------------------------------------------------------------------------
+            */
+
+            resultCount.textContent =
+                visibleCount;
+
+
+            searchKeyword.textContent =
+                '"' +
+                searchInput.value +
+                '"';
+
+
+            resultInfo.classList.add(
+                'show'
+            );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | TIDAK ADA HASIL
+            |--------------------------------------------------------------------------
+            */
 
             if (searchEmptyRow) {
 
-                searchEmptyRow.classList.remove(
-                    'show'
-                );
+                if (
+                    visibleCount === 0
+                ) {
 
-            }
-
-
-            resultInfo.classList.remove(
-                'show'
-            );
-
-
-            clearSearch.classList.remove(
-                'show'
-            );
-
-
-            dataCount.textContent =
-                rows.length + ' Data';
-
-
-            return;
-
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | SEARCH AKTIF
-        |--------------------------------------------------------------------------
-        */
-
-        clearSearch.classList.add(
-            'show'
-        );
-
-
-        rows.forEach(function (row) {
-
-            const searchableData =
-                (
-                    row.dataset.search || ''
-                ).toLowerCase();
-
-
-            if (
-                searchableData.includes(
-                    keyword
-                )
-            ) {
-
-                row.style.display = '';
-
-                visibleCount++;
-
-            } else {
-
-                row.style.display = 'none';
-
-            }
-
-        });
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | UPDATE NOMOR
-        |--------------------------------------------------------------------------
-        */
-
-        let nomor = 1;
-
-        rows.forEach(function (row) {
-
-            if (
-                row.style.display !== 'none'
-            ) {
-
-                const nomorCell =
-                    row.querySelector(
-                        '.nomor-data'
+                    searchEmptyRow.classList.add(
+                        'show'
                     );
 
-                if (nomorCell) {
+                } else {
 
-                    nomorCell.textContent =
-                        nomor++;
+                    searchEmptyRow.classList.remove(
+                        'show'
+                    );
 
                 }
 
             }
 
-        });
+        }
 
 
         /*
         |--------------------------------------------------------------------------
-        | UPDATE JUMLAH DATA
+        | SAAT MENGETIK
         |--------------------------------------------------------------------------
         */
 
-        dataCount.textContent =
-            visibleCount + ' Data';
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | UPDATE INFO SEARCH
-        |--------------------------------------------------------------------------
-        */
-
-        resultCount.textContent =
-            visibleCount;
-
-
-        searchKeyword.textContent =
-            '"' + searchInput.value + '"';
-
-
-        resultInfo.classList.add(
-            'show'
+        searchInput.addEventListener(
+            'input',
+            doSearch
         );
 
 
         /*
         |--------------------------------------------------------------------------
-        | TIDAK ADA HASIL
+        | CLEAR SEARCH
         |--------------------------------------------------------------------------
         */
 
-        if (searchEmptyRow) {
+        clearSearch.addEventListener(
+            'click',
+            function () {
 
-            if (visibleCount === 0) {
+                searchInput.value = '';
 
-                searchEmptyRow.classList.add(
-                    'show'
-                );
+                doSearch();
 
-            } else {
-
-                searchEmptyRow.classList.remove(
-                    'show'
-                );
+                searchInput.focus();
 
             }
-
-        }
+        );
 
     }
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | EVENT SAAT MENGETIK
-    |--------------------------------------------------------------------------
-    */
-
-    searchInput.addEventListener(
-        'input',
-        doSearch
-    );
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | TOMBOL CLEAR
-    |--------------------------------------------------------------------------
-    */
-
-    clearSearch.addEventListener(
-        'click',
-        function () {
-
-            searchInput.value = '';
-
-            doSearch();
-
-            searchInput.focus();
-
-        }
-    );
-
-});
+);
 
 </script>
 

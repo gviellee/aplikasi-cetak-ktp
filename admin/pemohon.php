@@ -24,10 +24,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             try {
 
-                /*
-                | Ambil semua file pengajuan milik user
-                */
-
                 $stmtFile = $pdo->prepare("
                     SELECT
                         gambar_path,
@@ -38,24 +34,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $stmtFile->execute([$userId]);
 
-                $files = $stmtFile->fetchAll(PDO::FETCH_ASSOC);
+                $files =
+                    $stmtFile->fetchAll(
+                        PDO::FETCH_ASSOC
+                    );
 
 
-                /*
-                | Hapus data pengajuan
-                */
+                $stmtDeletePengajuan =
+                    $pdo->prepare("
+                        DELETE FROM pengajuan_ktp
+                        WHERE user_id = ?
+                    ");
 
-                $stmtDeletePengajuan = $pdo->prepare("
-                    DELETE FROM pengajuan_ktp
-                    WHERE user_id = ?
-                ");
+                $stmtDeletePengajuan->execute([
+                    $userId
+                ]);
 
-                $stmtDeletePengajuan->execute([$userId]);
-
-
-                /*
-                | Hapus file fisik
-                */
 
                 $uploadDir =
                     __DIR__ .
@@ -64,7 +58,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 foreach ($files as $file) {
 
-                    if (!empty($file['gambar_path'])) {
+                    if (
+                        !empty(
+                            $file['gambar_path']
+                        )
+                    ) {
 
                         $fileName =
                             basename(
@@ -81,7 +79,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
 
-                    if (!empty($file['foto_diri_path'])) {
+                    if (
+                        !empty(
+                            $file['foto_diri_path']
+                        )
+                    ) {
 
                         $fileName =
                             basename(
@@ -99,17 +101,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
 
-                /*
-                | Hapus user
-                */
+                $stmtDeleteUser =
+                    $pdo->prepare("
+                        DELETE FROM users
+                        WHERE id = ?
+                        AND role = 'user'
+                    ");
 
-                $stmtDeleteUser = $pdo->prepare("
-                    DELETE FROM users
-                    WHERE id = ?
-                    AND role = 'user'
-                ");
-
-                $stmtDeleteUser->execute([$userId]);
+                $stmtDeleteUser->execute([
+                    $userId
+                ]);
 
 
                 header(
@@ -171,6 +172,7 @@ $stmt = $pdo->query("
         p.user_id,
         p.nik,
         p.nama_pemohon,
+        p.nama_atasan,
         p.gambar_path,
         p.foto_diri_path,
         p.status,
@@ -183,7 +185,10 @@ $stmt = $pdo->query("
     ORDER BY p.created_at DESC
 ");
 
-$pengajuan = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$pengajuan =
+    $stmt->fetchAll(
+        PDO::FETCH_ASSOC
+    );
 
 
 /*
@@ -203,7 +208,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 /*
 |--------------------------------------------------------------------------
-| HEADER HALAMAN
+| HEADER
 |--------------------------------------------------------------------------
 */
 
@@ -261,6 +266,70 @@ require_once __DIR__ . '/../includes/header.php';
     vertical-align: middle;
 
     font-size: 14px;
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| NAMA PEMOHON
+|--------------------------------------------------------------------------
+*/
+
+.nama-pemohon {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 5px;
+
+    min-width: 160px;
+}
+
+
+.nama-pemohon-text {
+
+    font-weight: 600;
+
+    color: #1f1b3d;
+}
+
+
+.atasan-badge {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 5px;
+
+    width: fit-content;
+
+    max-width: 220px;
+
+    padding: 5px 8px;
+
+    border-radius: 7px;
+
+    background: #f5f3ff;
+
+    color: #6d28d9;
+
+    border: 1px solid #e9d5ff;
+
+    font-size: 10px;
+
+    font-weight: 700;
+
+    line-height: 1.3;
+}
+
+
+.atasan-badge i {
+
+    font-size: 11px;
+
+    flex-shrink: 0;
 }
 
 
@@ -425,18 +494,18 @@ require_once __DIR__ . '/../includes/header.php';
 </style>
 
 
-<!-- =========================================================
-     HEADER
-========================================================= -->
+<!-- HEADER -->
 
 <div class="page-header-box">
 
     <div
-        class="d-flex
-               justify-content-between
-               align-items-center
-               flex-wrap
-               gap-3"
+        class="
+            d-flex
+            justify-content-between
+            align-items-center
+            flex-wrap
+            gap-3
+        "
     >
 
         <div>
@@ -478,15 +547,18 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 
-<!-- =========================================================
-     PESAN
-========================================================= -->
+<!-- PESAN -->
 
 <?php if ($success !== ''): ?>
 
     <div
-        class="alert alert-success
-               alert-dismissible fade show"
+        class="
+            alert
+            alert-success
+            alert-dismissible
+            fade
+            show
+        "
     >
 
         <i
@@ -510,12 +582,21 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($error !== ''): ?>
 
     <div
-        class="alert alert-danger
-               alert-dismissible fade show"
+        class="
+            alert
+            alert-danger
+            alert-dismissible
+            fade
+            show
+        "
     >
 
         <i
-            class="bi bi-exclamation-triangle-fill me-2"
+            class="
+                bi
+                bi-exclamation-triangle-fill
+                me-2
+            "
         ></i>
 
         <?= e($error) ?>
@@ -532,9 +613,7 @@ require_once __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 
 
-<!-- =========================================================
-     TABLE
-========================================================= -->
+<!-- TABLE -->
 
 <div class="card border-0 shadow-sm">
 
@@ -543,10 +622,13 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="table-responsive">
 
             <table
-                class="table table-hover
-                       align-middle
-                       mb-0
-                       pengajuan-table"
+                class="
+                    table
+                    table-hover
+                    align-middle
+                    mb-0
+                    pengajuan-table
+                "
             >
 
                 <thead>
@@ -707,13 +789,66 @@ require_once __DIR__ . '/../includes/header.php';
                             </td>
 
 
-                            <!-- NAMA -->
+                            <!-- NAMA PEMOHON -->
 
                             <td>
 
-                                <?= e(
-                                    $row['nama_pemohon']
-                                ) ?>
+                                <div
+                                    class="nama-pemohon"
+                                >
+
+                                    <div
+                                        class="nama-pemohon-text"
+                                    >
+
+                                        <?= e(
+                                            $row[
+                                                'nama_pemohon'
+                                            ]
+                                        ) ?>
+
+                                    </div>
+
+
+                                    <?php if (
+                                        !empty(
+                                            $row[
+                                                'nama_atasan'
+                                            ]
+                                        )
+                                    ): ?>
+
+                                        <span
+                                            class="atasan-badge"
+                                            title="
+                                                Pengajuan diajukan oleh atasan:
+                                                <?= e(
+                                                    $row[
+                                                        'nama_atasan'
+                                                    ]
+                                                ) ?>
+                                            "
+                                        >
+
+                                            <i
+                                                class="
+                                                    bi
+                                                    bi-person-badge-fill
+                                                "
+                                            ></i>
+
+                                            
+                                            <?= e(
+                                                $row[
+                                                    'nama_atasan'
+                                                ]
+                                            ) ?>
+
+                                        </span>
+
+                                    <?php endif; ?>
+
+                                </div>
 
                             </td>
 
@@ -722,12 +857,19 @@ require_once __DIR__ . '/../includes/header.php';
 
                             <td>
 
-                                <div class="user-pengaju">
+                                <div
+                                    class="user-pengaju"
+                                >
 
-                                    <div class="user-icon">
+                                    <div
+                                        class="user-icon"
+                                    >
 
                                         <i
-                                            class="bi bi-person-fill"
+                                            class="
+                                                bi
+                                                bi-person-fill
+                                            "
                                         ></i>
 
                                     </div>
@@ -740,8 +882,9 @@ require_once __DIR__ . '/../includes/header.php';
                                         >
 
                                             <?= e(
-                                                $row['user_pengaju']
-                                                ?? '-'
+                                                $row[
+                                                    'user_pengaju'
+                                                ] ?? '-'
                                             ) ?>
 
                                         </div>
@@ -793,7 +936,9 @@ require_once __DIR__ . '/../includes/header.php';
                                         date(
                                             'd M Y',
                                             strtotime(
-                                                $row['created_at']
+                                                $row[
+                                                    'created_at'
+                                                ]
                                             )
                                         )
                                     ) ?>
@@ -808,7 +953,9 @@ require_once __DIR__ . '/../includes/header.php';
                                         date(
                                             'H:i',
                                             strtotime(
-                                                $row['created_at']
+                                                $row[
+                                                    'created_at'
+                                                ]
                                             )
                                         )
                                     ) ?>
@@ -818,10 +965,7 @@ require_once __DIR__ . '/../includes/header.php';
                             </td>
 
 
-                            <!-- =================================================
-                                 AKSI
-                                 STATUS BUTTON SUDAH DIHAPUS
-                            ================================================== -->
+                            <!-- AKSI -->
 
                             <td>
 

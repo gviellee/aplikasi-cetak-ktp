@@ -9,7 +9,8 @@ $errors = [];
 $success = '';
 
 $old = [
-    'nik' => '',
+    'nama_atasan'  => '',
+    'nik'          => '',
     'nama_pemohon' => ''
 ];
 
@@ -18,11 +19,6 @@ $old = [
 |--------------------------------------------------------------------------
 | KONFIGURASI UPLOAD
 |--------------------------------------------------------------------------
-|
-| File fisik benar-benar disimpan ke:
-|
-| aplikasi-cetak-ktp/uploads/images/
-|
 */
 
 $uploadDir = __DIR__ . '/../uploads/images/';
@@ -52,7 +48,13 @@ if (!is_dir($uploadDir)) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    $nik = trim($_POST['nik'] ?? '');
+    $nama_atasan = trim(
+        $_POST['nama_atasan'] ?? ''
+    );
+
+    $nik = trim(
+        $_POST['nik'] ?? ''
+    );
 
     $nama_pemohon = trim(
         $_POST['nama_pemohon'] ?? ''
@@ -60,9 +62,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
     $old = [
-        'nik' => $nik,
+        'nama_atasan'  => $nama_atasan,
+        'nik'          => $nik,
         'nama_pemohon' => $nama_pemohon
     ];
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | VALIDASI NAMA ATASAN
+    |--------------------------------------------------------------------------
+    */
+
+    if ($nama_atasan !== '') {
+
+        if (strlen($nama_atasan) > 100) {
+
+            $errors[] =
+                'Nama atasan maksimal 100 karakter.';
+
+        } elseif (
+            !preg_match(
+                '/^[a-zA-ZÀ-ÿ\s]+$/u',
+                $nama_atasan
+            )
+        ) {
+
+            $errors[] =
+                'Nama atasan hanya boleh berisi huruf dan spasi.';
+        }
+    }
 
 
     /*
@@ -80,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /*
     |--------------------------------------------------------------------------
-    | VALIDASI NAMA
+    | VALIDASI NAMA PEMOHON
     |--------------------------------------------------------------------------
     */
 
@@ -117,7 +146,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] =
             'Foto KTP / Surat Kehilangan wajib diunggah.';
 
-    } elseif ($dokumen['error'] !== UPLOAD_ERR_OK) {
+    } elseif (
+        $dokumen['error'] !== UPLOAD_ERR_OK
+    ) {
 
         $errors[] =
             'Foto KTP / Surat Kehilangan gagal diunggah.';
@@ -139,7 +170,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] =
             'Foto diri wajib diunggah.';
 
-    } elseif ($fotoDiri['error'] !== UPLOAD_ERR_OK) {
+    } elseif (
+        $fotoDiri['error'] !== UPLOAD_ERR_OK
+    ) {
 
         $errors[] =
             'Foto diri gagal diunggah.';
@@ -148,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     /*
     |--------------------------------------------------------------------------
-    | VALIDASI FILE
+    | KONFIGURASI FILE
     |--------------------------------------------------------------------------
     */
 
@@ -180,20 +213,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $dokumen['error'] === UPLOAD_ERR_OK
     ) {
 
-        /*
-        | Cek ukuran
-        */
-
         if ($dokumen['size'] > $maxSize) {
 
             $errors[] =
                 'Ukuran foto KTP maksimal 5 MB.';
         }
 
-
-        /*
-        | Cek ekstensi
-        */
 
         $dokumenExtension = strtolower(
             pathinfo(
@@ -215,10 +240,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'Foto KTP hanya boleh JPG, JPEG, atau PNG.';
         }
 
-
-        /*
-        | Cek MIME
-        */
 
         $finfo = finfo_open(
             FILEINFO_MIME_TYPE
@@ -264,20 +285,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fotoDiri['error'] === UPLOAD_ERR_OK
     ) {
 
-        /*
-        | Cek ukuran
-        */
-
         if ($fotoDiri['size'] > $maxSize) {
 
             $errors[] =
                 'Ukuran foto diri maksimal 5 MB.';
         }
 
-
-        /*
-        | Cek ekstensi
-        */
 
         $fotoDiriExtension = strtolower(
             pathinfo(
@@ -299,10 +312,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'Foto diri hanya boleh JPG, JPEG, atau PNG.';
         }
 
-
-        /*
-        | Cek MIME
-        */
 
         $finfo = finfo_open(
             FILEINFO_MIME_TYPE
@@ -342,12 +351,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$errors) {
 
-        /*
-        |--------------------------------------------------------------------------
-        | ID USER
-        |--------------------------------------------------------------------------
-        */
-
         $userId = (int) (
             $_SESSION['user_id'] ?? 0
         );
@@ -359,12 +362,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'User tidak valid. Silakan login kembali.';
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | BUAT NAMA FILE UNIK
-        |--------------------------------------------------------------------------
-        */
 
         if (!$errors) {
 
@@ -411,7 +408,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             /*
             |--------------------------------------------------------------------------
-            | PATH FISIK FILE
+            | PATH FILE
             |--------------------------------------------------------------------------
             */
 
@@ -462,10 +459,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if (!$uploadFotoDiri) {
 
-                    /*
-                    | Hapus KTP jika foto diri gagal
-                    */
-
                     if (
                         file_exists(
                             $dokumenPath
@@ -494,24 +487,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 try {
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | STATUS AWAL
-                    |--------------------------------------------------------------------------
-                    */
-
                     $statusAwal = 'menunggu';
 
-
-                    /*
-                    |--------------------------------------------------------------------------
-                    | INSERT DATABASE
-                    |--------------------------------------------------------------------------
-                    */
 
                     $stmt = $pdo->prepare("
                         INSERT INTO pengajuan_ktp
                         (
+                            nama_atasan,
                             nik,
                             nama_pemohon,
                             gambar_path,
@@ -526,64 +508,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             ?,
                             ?,
                             ?,
+                            ?,
                             ?
                         )
                     ");
 
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | NAMA FILE DATABASE
-                    |--------------------------------------------------------------------------
-                    |
-                    | PENTING:
-                    |
-                    | $dokumenName
-                    | harus sama dengan file fisik.
-                    |
-                    | $fotoDiriName
-                    | harus sama dengan file fisik.
-                    |
-                    */
-
                     $stmt->execute([
+
+                        $nama_atasan !== ''
+                            ? $nama_atasan
+                            : null,
+
                         $nik,
+
                         $nama_pemohon,
+
                         $dokumenName,
+
                         $fotoDiriName,
+
                         $statusAwal,
+
                         $userId
+
                     ]);
 
-
-                    /*
-                    |--------------------------------------------------------------------------
-                    | BERHASIL
-                    |--------------------------------------------------------------------------
-                    */
 
                     $success =
                         'Pengajuan cetak KTP berhasil dikirim. Silakan cek status secara berkala.';
 
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | RESET FORM
-                    |--------------------------------------------------------------------------
-                    */
-
                     $old = [
-                        'nik' => '',
+
+                        'nama_atasan'  => '',
+
+                        'nik'          => '',
+
                         'nama_pemohon' => ''
+
                     ];
 
                 } catch (PDOException $e) {
-
-                    /*
-                    |--------------------------------------------------------------------------
-                    | HAPUS FILE JIKA DATABASE GAGAL
-                    |--------------------------------------------------------------------------
-                    */
 
                     if (
                         file_exists(
@@ -639,9 +605,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div class="card p-4 p-md-5">
 
 
-            <!-- =====================================================
-                 HEADER
-            ====================================================== -->
+            <!-- HEADER -->
 
             <div class="d-flex align-items-center gap-3 mb-4">
 
@@ -662,7 +626,12 @@ require_once __DIR__ . '/../includes/header.php';
                 >
 
                     <i
-                        class="bi bi-file-earmark-plus-fill text-white fs-5"
+                        class="
+                            bi
+                            bi-file-earmark-plus-fill
+                            text-white
+                            fs-5
+                        "
                     ></i>
 
                 </div>
@@ -683,16 +652,18 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
 
 
-            <!-- =====================================================
-                 SUCCESS
-            ====================================================== -->
+            <!-- SUCCESS -->
 
             <?php if ($success): ?>
 
                 <div class="alert alert-success">
 
                     <i
-                        class="bi bi-check-circle-fill me-1"
+                        class="
+                            bi
+                            bi-check-circle-fill
+                            me-1
+                        "
                     ></i>
 
                     <?= e($success) ?>
@@ -702,9 +673,7 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endif; ?>
 
 
-            <!-- =====================================================
-                 ERROR
-            ====================================================== -->
+            <!-- ERROR -->
 
             <?php if ($errors): ?>
 
@@ -722,7 +691,9 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php foreach ($errors as $err): ?>
 
                             <li>
+
                                 <?= e($err) ?>
+
                             </li>
 
                         <?php endforeach; ?>
@@ -734,9 +705,7 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endif; ?>
 
 
-            <!-- =====================================================
-                 FORM
-            ====================================================== -->
+            <!-- FORM -->
 
             <form
                 method="POST"
@@ -744,20 +713,63 @@ require_once __DIR__ . '/../includes/header.php';
             >
 
 
-                <!-- =================================================
-                     NIK
-                ================================================== -->
+                <!-- NAMA ATASAN -->
 
                 <div class="mb-3">
 
                     <label
-                        class="form-label fw-semibold"
+                        class="
+                            form-label
+                            fw-semibold
+                        "
+                        for="nama_atasan"
+                    >
+
+                        Nama Atasan yang Mengajukan
+
+                    </label>
+
+
+                    <input
+                        type="text"
+                        name="nama_atasan"
+                        id="nama_atasan"
+                        class="form-control"
+                        maxlength="100"
+                        placeholder="Masukkan nama atasan yang mengajukan"
+                        value="<?= e(
+                            $old['nama_atasan']
+                        ) ?>"
+                    >
+
+
+                    <div class="form-text">
+
+                        Kosongkan jika pengajuan dilakukan
+                        sendiri.
+
+                    </div>
+
+                </div>
+
+
+                <!-- NIK -->
+
+                <div class="mb-3">
+
+                    <label
+                        class="
+                            form-label
+                            fw-semibold
+                        "
                         for="nik"
                     >
 
                         NIK
 
-                        <span class="text-danger">*</span>
+                        <span class="text-danger">
+                            *
+                        </span>
 
                     </label>
 
@@ -773,7 +785,9 @@ require_once __DIR__ . '/../includes/header.php';
                         inputmode="numeric"
                         placeholder="Masukkan 16 digit NIK"
                         required
-                        value="<?= e($old['nik']) ?>"
+                        value="<?= e(
+                            $old['nik']
+                        ) ?>"
                     >
 
 
@@ -786,20 +800,23 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
 
 
-                <!-- =================================================
-                     NAMA
-                ================================================== -->
+                <!-- NAMA PEMOHON -->
 
                 <div class="mb-3">
 
                     <label
-                        class="form-label fw-semibold"
+                        class="
+                            form-label
+                            fw-semibold
+                        "
                         for="nama_pemohon"
                     >
 
                         Nama Pemohon
 
-                        <span class="text-danger">*</span>
+                        <span class="text-danger">
+                            *
+                        </span>
 
                     </label>
 
@@ -812,30 +829,39 @@ require_once __DIR__ . '/../includes/header.php';
                         maxlength="30"
                         placeholder="Nama lengkap sesuai KTP"
                         required
-                        value="<?= e($old['nama_pemohon']) ?>"
+                        value="<?= e(
+                            $old['nama_pemohon']
+                        ) ?>"
                     >
 
                 </div>
 
 
-                <!-- =================================================
-                     FOTO KTP
-                ================================================== -->
+                <!-- FOTO KTP -->
 
                 <div class="mb-4">
 
                     <label
-                        class="form-label fw-semibold"
+                        class="
+                            form-label
+                            fw-semibold
+                        "
                         for="dokumen"
                     >
 
                         <i
-                            class="bi bi-file-earmark-image me-1"
+                            class="
+                                bi
+                                bi-file-earmark-image
+                                me-1
+                            "
                         ></i>
 
                         Foto KTP / Surat Kehilangan
 
-                        <span class="text-danger">*</span>
+                        <span class="text-danger">
+                            *
+                        </span>
 
                     </label>
 
@@ -845,39 +871,51 @@ require_once __DIR__ . '/../includes/header.php';
                         name="dokumen"
                         id="dokumen"
                         class="form-control"
-                        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                        accept="
+                            .jpg,
+                            .jpeg,
+                            .png,
+                            image/jpeg,
+                            image/png
+                        "
                         required
                     >
 
 
                     <div class="form-text">
 
-                        Format JPG/JPEG/PNG,
-                        maksimal 5 MB.
+                        Format JPG/JPEG/PNG, maksimal 5 MB.
 
                     </div>
 
                 </div>
 
 
-                <!-- =================================================
-                     FOTO DIRI
-                ================================================== -->
+                <!-- FOTO DIRI -->
 
                 <div class="mb-4">
 
                     <label
-                        class="form-label fw-semibold"
+                        class="
+                            form-label
+                            fw-semibold
+                        "
                         for="foto_diri"
                     >
 
                         <i
-                            class="bi bi-person-bounding-box me-1"
+                            class="
+                                bi
+                                bi-person-bounding-box
+                                me-1
+                            "
                         ></i>
 
                         Foto Diri Sambil Memegang KTP
 
-                        <span class="text-danger">*</span>
+                        <span class="text-danger">
+                            *
+                        </span>
 
                     </label>
 
@@ -887,16 +925,39 @@ require_once __DIR__ . '/../includes/header.php';
                         name="foto_diri"
                         id="foto_diri"
                         class="form-control"
-                        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                        accept="
+                            .jpg,
+                            .jpeg,
+                            .png,
+                            image/jpeg,
+                            image/png
+                        "
                         required
                     >
 
 
-                    <div class="alert alert-info mt-3 mb-0">
+                    <div class="form-text">
+
+                        Format JPG/JPEG/PNG, maksimal 5 MB.
+
+                    </div>
+
+
+                    <!-- KETENTUAN FOTO DIRI -->
+
+                    <div
+                        class="
+                            alert
+                            alert-info
+                            mt-3
+                            mb-0
+                        "
+                    >
 
                         <strong>
                             Ketentuan Foto Diri
                         </strong>
+
 
                         <ul class="mb-0 mt-2">
 
@@ -922,19 +983,12 @@ require_once __DIR__ . '/../includes/header.php';
                                 atau terlalu gelap.
                             </li>
 
-                            <li>
-                                Format JPG/JPEG/PNG,
-                                maksimal 5 MB.
-                            </li>
-
                         </ul>
 
                     </div>
 
 
-                    <!-- =================================================
-                         PREVIEW FOTO DIRI
-                    ================================================== -->
+                    <!-- PREVIEW FOTO DIRI -->
 
                     <div
                         id="previewContainer"
@@ -943,19 +997,33 @@ require_once __DIR__ . '/../includes/header.php';
                     >
 
                         <div
-                            class="card bg-light border-0"
+                            class="
+                                card
+                                bg-light
+                                border-0
+                            "
                         >
 
                             <div
-                                class="card-body text-center"
+                                class="
+                                    card-body
+                                    text-center
+                                "
                             >
 
                                 <div
-                                    class="fw-semibold mb-3"
+                                    class="
+                                        fw-semibold
+                                        mb-3
+                                    "
                                 >
 
                                     <i
-                                        class="bi bi-eye me-1"
+                                        class="
+                                            bi
+                                            bi-eye
+                                            me-1
+                                        "
                                     ></i>
 
                                     Preview Foto Diri
@@ -985,17 +1053,24 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
 
 
-                <!-- =================================================
-                     BUTTON
-                ================================================== -->
+                <!-- BUTTON -->
 
                 <button
                     type="submit"
-                    class="btn btn-primary w-100 py-2"
+                    class="
+                        btn
+                        btn-primary
+                        w-100
+                        py-2
+                    "
                 >
 
                     <i
-                        class="bi bi-send-fill me-1"
+                        class="
+                            bi
+                            bi-send-fill
+                            me-1
+                        "
                     ></i>
 
                     Kirim Pengajuan
@@ -1028,10 +1103,12 @@ document.addEventListener(
                 'foto_diri'
             );
 
+
         const previewContainer =
             document.getElementById(
                 'previewContainer'
             );
+
 
         const previewFoto =
             document.getElementById(
@@ -1065,7 +1142,9 @@ document.addEventListener(
 
 
                     /*
-                    | Cek ukuran
+                    |--------------------------------------------------------------------------
+                    | CEK UKURAN
+                    |--------------------------------------------------------------------------
                     */
 
                     if (
@@ -1089,7 +1168,9 @@ document.addEventListener(
 
 
                     /*
-                    | Cek tipe
+                    |--------------------------------------------------------------------------
+                    | CEK TIPE
+                    |--------------------------------------------------------------------------
                     */
 
                     if (
@@ -1117,7 +1198,9 @@ document.addEventListener(
 
 
                     /*
-                    | Preview
+                    |--------------------------------------------------------------------------
+                    | PREVIEW
+                    |--------------------------------------------------------------------------
                     */
 
                     const reader =
@@ -1153,7 +1236,9 @@ document.addEventListener(
         */
 
         const nik =
-            document.getElementById('nik');
+            document.getElementById(
+                'nik'
+            );
 
 
         if (nik) {
@@ -1176,7 +1261,37 @@ document.addEventListener(
 
         /*
         |--------------------------------------------------------------------------
-        | NAMA
+        | NAMA ATASAN
+        |--------------------------------------------------------------------------
+        */
+
+        const namaAtasan =
+            document.getElementById(
+                'nama_atasan'
+            );
+
+
+        if (namaAtasan) {
+
+            namaAtasan.addEventListener(
+                'input',
+                function () {
+
+                    this.value =
+                        this.value.replace(
+                            /[^a-zA-ZÀ-ÿ\s]/g,
+                            ''
+                        );
+
+                }
+            );
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | NAMA PEMOHON
         |--------------------------------------------------------------------------
         */
 
